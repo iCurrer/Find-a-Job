@@ -1,7 +1,7 @@
 # 事实来源登记（profile/sources.md）
 
 本文件说明 `profile/profile.json` 中 `facts_sources` 的登记方式与确认流程。字段结构见
-[`../skill/references/profile-schema.md`](../skill/references/profile-schema.md)。
+[`../skills/job-agent/references/profile-schema.md`](../skills/job-agent/references/profile-schema.md)。
 
 ## 为什么需要
 
@@ -43,4 +43,4 @@
 4. 生成材料前再检查一次：材料中出现的每个数字、时间、证书，都必须能在 `facts_sources` 中找到依据；
    找不到的写成 `〔待确认：<字段>〕`，不得估填。
 
-> 事实状态与材料规则详见 `skill/references/resume-policy.md`；档案结构详见 `skill/references/profile-schema.md`。
+> 事实状态与材料规则详见 `skills/job-agent/references/resume-policy.md`；档案结构详见 `skills/job-agent/references/profile-schema.md`。

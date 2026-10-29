@@ -15,6 +15,6 @@
 
 # 文档类不计入主要语言统计
 docs/** linguist-documentation
-skill/** linguist-documentation
+skills/** linguist-documentation
 reports/** linguist-documentation
 tests/test_cases.md linguist-documentation

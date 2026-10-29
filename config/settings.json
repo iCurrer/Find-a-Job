@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "note": "非敏感运行配置；不要在此文件写入密码、Cookie 或令牌。",
-  "updated_at": "2026-10-29T12:30:00+08:00",
+  "updated_at": "2026-10-29T12:57:00+08:00",
   "run_mode": "semi_auto",
   "paths": {
     "profile": "profile/profile.json",
@@ -21,17 +21,50 @@
     "login_with_credentials"
   ],
   "verified_capabilities": {
-    "file_read": false,
-    "script_exec": false,
-    "browser_exec": false,
-    "mobile_exec": false
+    "script_exec": {
+      "state": "verified",
+      "evidence": "python.exe 3.13.14（脚本自身已执行）",
+      "checked_at": "2026-10-29T12:57:00+08:00"
+    },
+    "file_read": {
+      "state": "verified",
+      "evidence": "成功读取 config/settings.json（11 个顶层键）",
+      "checked_at": "2026-10-29T12:57:00+08:00"
+    },
+    "file_write": {
+      "state": "verified",
+      "evidence": "logs/ 下写入并删除探针文件成功",
+      "checked_at": "2026-10-29T12:57:00+08:00"
+    },
+    "stdlib_only": {
+      "state": "verified",
+      "evidence": "scripts/ 全部导入均来自标准库（无需 pip 安装）",
+      "checked_at": "2026-10-29T12:57:00+08:00"
+    },
+    "browser_exec": {
+      "state": "unverified",
+      "evidence": "需在 P4 阶段实测「只读页面」验证后由用户确认",
+      "checked_at": "2026-10-29T12:57:00+08:00"
+    },
+    "mobile_exec": {
+      "state": "unverified",
+      "evidence": "需在 P5 阶段接入设备后由用户确认",
+      "checked_at": "2026-10-29T12:57:00+08:00"
+    }
   },
-  "capability_note": "P0 环境盘点通过前一律为 false。每项能力必须有可复现的证据（命令输出、截图、日志路径）才能改为 true，并在 logs/ 中登记。",
+  "capability_note": "能力矩阵由 `python scripts/jobagent.py doctor --write` 生成，每项含 state / evidence / checked_at。state 取值：verified（本次已取得可复现证据）、unverified（尚未实测，按「未接入」处理）、unavailable（实测失败）。browser_exec 与 mobile_exec 保持 unverified，需用户在 P4/P5 实测后自行确认。",
   "trusted_sources": [
     "company_career_site",
     "official_job_board",
     "referral",
     "manual_import"
   ],
-  "job_status_enum": ["待评估", "优先投递", "暂缓", "不匹配", "已过期"]
+  "job_status_enum": [
+    "待评估",
+    "优先投递",
+    "暂缓",
+    "不匹配",
+    "已过期"
+  ],
+  "capability_checked_at": "2026-10-29T12:57:00+08:00"
 }

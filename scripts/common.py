@@ -33,9 +33,39 @@ def now_date():
     return datetime.now(CST).strftime("%Y-%m-%d")
 
 
-def project_root():
-    """脚本所在目录的上一级，即 JobAgent/ 项目根。"""
+def find_root(start=None):
+    """定位项目根（数据工作区），供 Skill 从任意工作目录调用。
+
+    解析优先级：
+    1. 环境变量 `JOBAGENT_ROOT`（显式指定，最高优先级）；
+    2. 从 `start`（默认当前工作目录）向上逐级查找，命中同时含
+       `config/settings.json` 与 `scripts/` 的目录；
+    3. 兜底：本文件所在目录的上一级（即随脚本一起分发时的项目根）。
+
+    这样把 `skills/job-agent/` 装进 WorkBuddy 后，即使当前工作目录不是项目根，
+    脚本仍能靠自己找到数据目录，不会把相对路径拼到错误位置。
+    """
+    env_root = os.environ.get("JOBAGENT_ROOT")
+    if env_root and os.path.isdir(env_root):
+        return os.path.abspath(env_root)
+
+    cursor = os.path.abspath(start or os.getcwd())
+    while True:
+        if os.path.isfile(os.path.join(cursor, "config", "settings.json")) and os.path.isdir(
+            os.path.join(cursor, "scripts")
+        ):
+            return cursor
+        parent = os.path.dirname(cursor)
+        if parent == cursor:
+            break
+        cursor = parent
+
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def project_root():
+    """项目根目录（即数据工作区 JobAgent/）。"""
+    return find_root()
 
 
 def resolve(path):

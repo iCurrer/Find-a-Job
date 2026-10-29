@@ -191,8 +191,8 @@ def t06(ctx):
 # T07 浏览器页面结构变化：停止自动操作并报告异常（Skill 强制规则）
 # ---------------------------------------------------------------------------
 def t07(ctx):
-    skill_path = os.path.join(ROOT, "skill", "SKILL.md")
-    check(os.path.exists(skill_path), "缺少 skill/SKILL.md")
+    skill_path = os.path.join(ROOT, "skills", "job-agent", "SKILL.md")
+    check(os.path.exists(skill_path), "缺少 skills/job-agent/SKILL.md")
     text = open(skill_path, "r", encoding="utf-8").read()
     check("页面" in text, "SKILL.md 应包含页面变化处理规则")
     check("暂停" in text, "SKILL.md 应要求异常时暂停")
@@ -203,7 +203,7 @@ def t07(ctx):
 # T08 验证码或登录保护：暂停并交用户处理，不尝试绕过
 # ---------------------------------------------------------------------------
 def t08(ctx):
-    text = open(os.path.join(ROOT, "skill", "SKILL.md"), "r", encoding="utf-8").read()
+    text = open(os.path.join(ROOT, "skills", "job-agent", "SKILL.md"), "r", encoding="utf-8").read()
     for keyword in ("验证码", "登录"):
         check(keyword in text, "SKILL.md 应包含 %s 处理规则" % keyword)
     check("绕过" in text or "不得" in text, "SKILL.md 应明确不得绕过风控")
@@ -280,6 +280,78 @@ def t12(ctx):
           "settings.json 应保留外部写入的确认点配置")
 
 
+# ---------------------------------------------------------------------------
+# T13 P0 能力盘点：doctor 必须给出可复现证据，且不得自证浏览器/移动能力
+# ---------------------------------------------------------------------------
+def t13(ctx):
+    proc = subprocess.run(
+        [PYTHON, os.path.join(ROOT, "scripts", "jobagent.py"), "doctor"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=ENV,
+    )
+    check(proc.returncode == 0, "doctor 应返回 0：%s%s" % (proc.stdout[:300], proc.stderr[:300]))
+    payload = json.loads(proc.stdout)
+    check(payload["ok"] is True, "doctor 应判定 ok")
+    check(payload["missing_dirs"] == [], "目录应完整，实际缺失：%s" % payload["missing_dirs"])
+
+    capabilities = payload["capabilities"]
+    for name in ("file_read", "file_write", "script_exec", "stdlib_only"):
+        check(name in capabilities, "能力矩阵缺少 %s" % name)
+        check(capabilities[name]["state"] == "verified", "%s 应为 verified" % name)
+        check(capabilities[name].get("evidence"), "%s 必须带可复现证据" % name)
+
+    for name in ("browser_exec", "mobile_exec"):
+        check(capabilities[name]["state"] == "unverified", "%s 不得被脚本自证为 verified" % name)
+
+    check("require_confirmation" in open(os.path.join(ROOT, "config", "settings.json"), "r", encoding="utf-8").read(),
+          "settings.json 应保留外部写入的确认点配置")
+
+
+# ---------------------------------------------------------------------------
+# T14 装载适配：从项目外的目录调用，仍能解析到项目根并跑通
+# ---------------------------------------------------------------------------
+def t14(ctx):
+    import tempfile
+
+    outside = tempfile.gettempdir()
+    entry = os.path.join(ROOT, "scripts", "jobagent.py")
+
+    proc = subprocess.run(
+        [PYTHON, entry, "doctor"],
+        cwd=outside,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=ENV,
+    )
+    check(proc.returncode == 0, "从项目外目录调用 doctor 应成功：%s%s" % (proc.stdout[:300], proc.stderr[:300]))
+    payload = json.loads(proc.stdout)
+    check(payload["ok"] is True, "从项目外目录调用仍应解析到项目根")
+    check(payload["missing_dirs"] == [], "根解析错误，缺失目录：%s" % payload["missing_dirs"])
+
+    env_override = dict(ENV, JOBAGENT_ROOT=ROOT.replace("\\", "/"))
+    proc2 = subprocess.run(
+        [PYTHON, entry, "status"],
+        cwd=outside,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env_override,
+    )
+    check(proc2.returncode == 0, "设置 JOBAGENT_ROOT 后 status 应成功：%s%s" % (proc2.stdout[:300], proc2.stderr[:300]))
+    payload2 = json.loads(proc2.stdout)
+    check(payload2["ok"] is True, "JOBAGENT_ROOT 应生效")
+    for key, value in (payload2.get("stores") or {}).items():
+        if value:
+            check(not os.path.isabs(value), "产物路径不得为绝对路径：%s=%s" % (key, value))
+
+
 TESTS = [
     ("T01", "档案字段缺失提示", t01),
     ("T02", "不同链接同一岗位去重", t02),
@@ -293,6 +365,8 @@ TESTS = [
     ("T10", "脚本中断不产出半成品", t10),
     ("T11", "备份可恢复", t11),
     ("T12", "本地脚本不联网", t12),
+    ("T13", "能力盘点有证据且不自证浏览器", t13),
+    ("T14", "项目外目录仍能解析根", t14),
 ]
 
 

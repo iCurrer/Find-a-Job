@@ -25,7 +25,7 @@ Python 解释器本身按 PSF License 分发，不属于本仓库的包含物。
 
 | 文件 | 来源 | 说明 |
 | --- | --- | --- |
-| `README.md`、`PROJECT_STATE.md`、`skill/**` | 本项目原创 | 随本仓库 MIT 许可分发 |
+| `README.md`、`PROJECT_STATE.md`、`skills/**` | 本项目原创 | 随本仓库 MIT 许可分发 |
 | `docs/WorkBuddy_个人求职Agent_开发方案_v1.0.docx` | 本项目原创设计文档 | 随本仓库 MIT 许可分发 |
 | `profile/`、`jobs/`、`reports/` 下的示例数据 | 本项目虚构 | 公司与岗位名称、联系方式均为占位符（`example-*`、`示例*`），不对应任何真实主体 |
 

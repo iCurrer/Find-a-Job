@@ -1,7 +1,7 @@
 ---
 name: job-agent
-description: 以本地个人档案为唯一事实来源，完成岗位导入、标准化去重、可解释评分、材料草稿与投递状态记录；任何外部写入前必须经用户显式确认。
-version: 0.1.0
+description: 个人求职流程编排 Skill。以本地个人档案为唯一事实来源，完成岗位导入、标准化去重、可解释的六维评分、简历/求职信/网申答案草稿与投递状态记录；任何外部写入（投递、发邮件、上传资料）前必须由用户显式确认。当用户提到「求职、找工作、岗位、投递、岗位评估、岗位打分、优先级排序、简历定制、求职信、网申、面试跟进、求职日报、求职周报、Offer 比较」，或提供招聘链接/岗位截图/岗位 JSON 要求分析或导入，或要求查询、更新投递记录时使用。
+version: 0.2.0
 ---
 
 # job-agent（个人求职流程 Skill）
@@ -14,12 +14,46 @@ version: 0.1.0
 > 4. 本 Skill 不联网、不绕过验证码、不代替用户保管或填写登录凭据；脚本只做确定性计算，理解、判断与生成由模型完成。
 > 5. 本文件及 `references/` 中的字段、命令、状态与权重，均以项目构建契约为准；发现方案原文与契约不一致时，**按契约执行**并在报告中列出差异。
 
+## 0. 装载与路径解析（每次运行先做）
+
+本 Skill 只规定**流程与边界**，不携带数据；脚本与数据在 JobAgent 项目目录里。因此第一步永远是**确认项目根**，
+否则相对路径会被拼到错误位置，四条命令会整体失败。
+
+### 0.1 三种部署形态
+
+| 形态 | Skill 位置 | 项目根（脚本 + 数据） | 说明 |
+| --- | --- | --- | --- |
+| 项目内（开发） | `<root>/skills/job-agent/` | 同仓的 `<root>/` | cwd 通常就是项目根 |
+| 装进 WorkBuddy | `~/.workbuddy/skills/job-agent/` | 另需指定 JobAgent 项目目录 | **cwd 不是项目根，必须解析根** |
+| 便携 / 多份副本 | 任意 | 任意盘符 | 用 `JOBAGENT_ROOT` 显式指定，避免歧义 |
+
+### 0.2 项目根解析优先级
+
+1. 命令行 `--root PATH`（`scripts/jobagent.py` 支持）；
+2. 环境变量 `JOBAGENT_ROOT`；
+3. 从当前工作目录**向上逐级查找**同时含 `config/settings.json` 与 `scripts/` 的目录；
+4. 兜底：`scripts/` 所在目录的上一级。
+
+**执行约定：** 除 `jobagent.py` 外，四个业务脚本都按「项目根相对路径」解析参数。因此调用它们之前
+**必须先 `cd` 到项目根**；若当前目录无法确定，先跑第 2.1 节的解析命令拿到绝对路径，再
+`cd "$JOBAGENT_ROOT"` 后执行。不要把相对路径命令放在其他目录直接运行。
+
+### 0.3 装载后的第一条命令（能力与路径自检）
+
+```bash
+python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor
+```
+
+- 退出码 `0` 且 `file_read` / `file_write` / `script_exec` 均为 `verified` → 进入主流程；
+- 任一项 `unavailable` 或 `missing_dirs` 非空 → 停止，按 2.3 降级为人工操作清单，并向用户报告缺失项。
+- 用户确认能力真实可用后，可加 `--write` 把能力矩阵写回 `config/settings.json`。
+
 ## 1. 名称与触发条件
 
 ### 1.1 名称与版本
 
 - 名称：`job-agent`（个人求职流程）
-- 版本：`0.1.0`（与 `PROJECT_STATE.md`、报告头中的版本号保持一致）
+- 版本：`0.2.0`（与 `PROJECT_STATE.md`、报告头中的版本号保持一致）
 - 定位：以 WorkBuddy 为决策中枢，以 Skill 编排流程，以**可验证的本地脚本**完成确定性处理；网页/手机操作在验证通过前保留为人工步骤。
 
 ### 1.2 用途
@@ -62,9 +96,19 @@ version: 0.1.0
 
 ### 2.1 工作区与项目根
 
-- 确认当前工作目录是项目根 `JobAgent/`；命令一律使用**项目根相对路径**（如 `python scripts/validate_profile.py --profile profile/profile.json`）。
-- 确认以下目录存在：`config/`、`profile/`、`jobs/raw/`、`jobs/`、`applications/`、`resumes/`、`reports/`、`logs/`、`scripts/`、`tests/`。
-- 若目录缺失或当前目录不是项目根：停止执行脚本，列出缺失项，请用户确认后再继续（不要把相对路径拼到错误位置）。
+按第 0.2 节的优先级解析项目根，命令一律使用**项目根相对路径**（如 `python scripts/validate_profile.py --profile profile/profile.json`）。
+
+```bash
+# 方式一：由入口脚本解析项目根（推荐，任意 cwd 都可用）
+python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor
+
+# 方式二：显式指定根，适用于多份副本 / U 盘便携部署
+export JOBAGENT_ROOT=/path/to/JobAgent
+python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor
+```
+
+- 必须存在的目录：`config/`、`profile/`、`jobs/raw/`、`applications/`、`resumes/`、`reports/`、`logs/`、`scripts/`、`tests/`、`skills/job-agent/references/`。
+- `missing_dirs` 非空，或 `cd` 无法进入项目根：停止执行脚本，列出缺失项，请用户确认 `--root` 后再继续（不要把相对路径拼到错误位置）。
 
 ### 2.2 档案检查
 
@@ -77,18 +121,28 @@ python scripts/validate_profile.py --profile profile/profile.json --report repor
 - 退出码 `1`：档案存在字段缺失、待确认事实或过期资料；**不得自动补造**，先把缺失项列为问题，必要时只做只读分析。
 - 退出码 `2`：参数错误或 `profile/profile.json` 不存在；提示用户先建立档案（可用 `profile/profile.template.json` 复制为 `profile/profile.json`），再决定是否继续。
 
-### 2.3 运行时能力盘点（P0）
+### 2.3 运行时能力盘点（P0）——交给 doctor，不要凭感觉
 
-逐项确认是否已有**可核验证据**，无证据即记为「未接入」：
+```bash
+python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor          # 只探测，不写文件
+python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写回 config/settings.json
+```
 
-| 能力 | 确认方式 | 未接入时的降级 |
+`doctor` 实测文件读、文件写、脚本执行与标准库依赖，按 `state` 三态（`verified` / `unverified` / `unavailable`）输出，
+每项带 `evidence` 与 `checked_at`，可直接作为 P0 的可复现证据写进报告。
+
+| 能力 | doctor 判据 | 非 verified 时的降级 |
 | --- | --- | --- |
-| 文件读写 | 能否读取项目内已知文件并回显其内容 | 仅输出人工操作清单 |
-| 脚本执行 | `python scripts/validate_profile.py --help` 是否能执行并返回用法 | 输出可复制命令，由用户在本机执行并回填结果 |
-| 浏览器控制 | 是否已验证可读取目标页面（非提交场景） | 不填表、不点击提交；输出人工清单 |
-| 移动端/App | 是否已验证设备、权限与目标 App | 不接入，列入后续阶段 |
+| 文件读取 `file_read` | 能否读取 `config/settings.json` | 仅输出人工操作清单 |
+| 文件写入 `file_write` | 能否在 `logs/` 写入并删除探针文件 | 只输出可复制命令，由用户在本机执行 |
+| 脚本执行 `script_exec` | 入口脚本是否真的跑起来了 | 输出命令与预期退出码，用户回填结果 |
+| 标准库自检 `stdlib_only` | `scripts/` 的导入是否全来自标准库 | 提示用户补依赖（本项目预期为空） |
+| 浏览器控制 `browser_exec` | **不由 doctor 判定**，恒为 `unverified` | 不填表、不点提交，输出人工清单 |
+| 移动端/App `mobile_exec` | **不由 doctor 判定**，恒为 `unverified` | 不接入，列入后续阶段 |
 
-> 「未接入」不是失败，而是当前运行模式的既定前提；报告中必须显式写明本次运行处于哪种模式。
+> 1. 「未接入」不是失败，而是当前运行模式的既定前提；报告中必须显式写明本次运行处于哪种模式，并引用 doctor 的 `checked_at`。
+> 2. **禁止**自行把 `browser_exec` / `mobile_exec` 改成 `verified`——只有用户完成 P4/P5 实测并确认后才可以。
+> 3. 能力矩阵的 `state` 是本次运行的事实，不得沿用上一次的 `verified` 结论，除非本次 doctor 仍然返回 `verified`。
 
 ### 2.4 按需加载的参考文件
 
@@ -221,11 +275,15 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 - 时间统一 ISO 8601 带时区，例如 `2026-10-29T12:30:00+08:00`。
 - 每个 JSON 顶层含 `schema_version`、`updated_at`。
 - 相对路径以项目根 `JobAgent/` 为基准，不拼绝对路径。
+- 项目根由 `scripts/common.py` 的 `find_root()` 解析：`--root` → 环境变量 `JOBAGENT_ROOT` → 从 cwd 向上查找 → 脚本上级目录。入口脚本 `jobagent.py` 从任意 cwd 都能工作；四个业务脚本仍建议先 `cd` 到项目根再执行。
 
-### 4.2 四个脚本的命令契约
+### 4.2 命令契约（统一入口 + 四个业务脚本）
 
 | 步骤 | 命令 | 成功输出（JSON 关键字段） |
 | --- | --- | --- |
+| 能力盘点 | `python scripts/jobagent.py doctor [--write]` | `{ok, root, missing_dirs[], capabilities{<name>:{state,evidence,checked_at}}}` |
+| 全流程 | `python scripts/jobagent.py run [--profile P] [--raw R]` | `{ok, steps[{script,code,outputs}], next}` |
+| 状态概览 | `python scripts/jobagent.py status` | `{applications_total, applications_by_status{}, follow_ups[], scored_by_status{}}` |
 | 档案校验 | `python scripts/validate_profile.py --profile profile/profile.json --report reports/profile-report.md` | `{ok, errors[], warnings[], pending_facts[], missing_fields[]}` |
 | 标准化+去重 | `python scripts/normalize_jobs.py --input jobs/raw/raw_jobs.json --output jobs/jobs.normalized.json` | `{ok, counts{...}, duplicates[], skipped[], output}` |
 | 规则评分 | `python scripts/score_jobs.py --jobs jobs/jobs.normalized.json --profile profile/profile.json --config config/scoring.json --output jobs/jobs.scored.json --report reports/scored-report.md` | `{ok, count, ranking[{job_id, company, title, score, status, blocked, reasons[], risks[], missing_info[]}]}` |
@@ -396,5 +454,6 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
 | 0.1.0 | 2026-10-29 | 首版：覆盖方案 4.2 的 8 个章节，对齐构建契约的字段、脚本与状态机 |
+| 0.2.0 | 2026-10-29 | 适配 WorkBuddy 装载：新增第 0 章「装载与路径解析」（根解析优先级 + 部署形态）、2.3 改由 `jobagent.py doctor` 实测能力矩阵、4.2 增补统一入口三命令；`description` 补齐触发词以便自动命中 |
 
 维护要求：Skill 版本、脚本命令、状态机、评分权重任一项变化时，同步更新本文件与对应 reference；评分权重变更还需在 `config/scoring.json` 中记录 `version` 与 `changelog`。

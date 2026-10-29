@@ -1,7 +1,7 @@
 # resumes/ — 材料版本目录
 
 本目录存放**对外材料**：主简历、岗位定制版简历、求职信、网申答案草稿。规则详见
-[`../skill/references/resume-policy.md`](../skill/references/resume-policy.md)。
+[`../skills/job-agent/references/resume-policy.md`](../skills/job-agent/references/resume-policy.md)。
 
 ## 命名规范
 
