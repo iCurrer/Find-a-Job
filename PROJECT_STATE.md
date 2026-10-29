@@ -1,10 +1,10 @@
 # PROJECT_STATE — JobAgent
 
 - 项目：WorkBuddy 个人求职 Agent（依据《WorkBuddy 个人求职 Agent 开发方案 V1.0》）
-- 当前版本：**0.3.0**（Skill 0.3.0 / 评分配置 1.0.0 / 数据 schema 1.0）
-- 更新时间：2026-10-29 13:15 (+08:00)
+- 当前版本：**0.4.0**（Skill 0.4.0 / 评分配置 1.0.0 / 数据 schema 1.0）
+- 更新时间：2026-10-29 13:25 (+08:00)
 - 运行模式：半自动（真实投递默认不执行）
-- 状态：P0 能力盘点已脚本化、P1 数据层、P2 Skill v0.3、P3 回归测试已完成；P4/P5 规范已定待实测；P6 未开始
+- 状态：P0 能力盘点已脚本化、P1 数据层、P2 Skill v0.4、P3 回归测试已完成；P4/P5 与邮件通道规范已定待实测；P6 未开始
 
 ## 1. 已完成与验证证据
 
@@ -16,11 +16,12 @@
 | 规则评分 | `scripts/score_jobs.py` | 示例岗位 + 示例档案 | 87 优先投递 / 73、70 待评估 / 54 暂缓 / 43 不匹配（学历阻断） |
 | 投递状态机 | `scripts/update_application.py` | 正常推进、无证据提交、重复提交、非法迁移 | 4 类异常均按预期拒绝（退出码 1） |
 | Skill 文档 | `skills/job-agent/SKILL.md` + 7 份 references | 章节与关键词检查（T07/T08/T15） | 10 个章节齐全，含装载与根解析、两套执行器规范 |
-| 执行器规范 | `references/browser-policy.md`、`references/android-adb-policy.md` | T15 检查关键条款是否写死 | 浏览器点名 `mcp__browser__*`/`tabs_claim` 并禁 Selenium/Playwright/Puppeteer；手机禁发送类、标注 `input text` 中文限制 |
-| 执行器配置 | `config/settings.json:executor_policy` | T16 校验字段 + `doctor --write` 后证据不丢 | `runtime=workbuddy_builtin`、`login_by_agent=false`、单岗位提交上限 1、`logs/screens/` 已忽略 |
+| 执行器规范 | `references/browser-policy.md`、`references/android-adb-policy.md`、`references/email-policy.md` | T15/T17 检查关键条款是否写死 | 浏览器点名 `mcp__browser__*`/`tabs_claim` 并禁 Selenium/Playwright/Puppeteer；手机禁发送类、标注 `input text` 中文限制；邮件固定 `qq-mail`、禁 `agent-mail` 代发、要求全文展示 |
+| 简历前置 | `references/resume-policy.md` 第 0 节 + `SKILL.md` 步骤 0 | T18 校验流程顺序与缺口清单机制 | 主流程九步，基础简历在导入岗位之前；事实不足时只输出缺口清单，不硬凑空简历 |
+| 执行器配置 | `config/settings.json:executor_policy` | T16 校验字段 + `doctor --write` 后证据不丢 | `runtime=workbuddy_builtin`、`login_by_agent=false`、单岗位提交上限 1、`email.forbidden_connector=agent-mail`、`logs/screens/` 已忽略 |
 | 能力盘点 | `scripts/jobagent.py doctor` | `doctor` 实测文件读写/脚本执行/标准库 | 四项 `verified` 带 evidence；浏览器/移动恒为 `unverified`（T13） |
 | 根解析适配 | `scripts/common.py:find_root()` | 从项目外目录调用（T14） | `--root` → `JOBAGENT_ROOT` → 向上查找 → 兜底，四种路径均命中 |
-| 回归测试 | `tests/run_tests.py` | `python tests/run_tests.py` | **16 通过 / 0 失败** |
+| 回归测试 | `tests/run_tests.py` | `python tests/run_tests.py` | **18 通过 / 0 失败** |
 | 运行报告 | `reports/*.md` | 打开检查 | 校验/去重/评分/运行摘要四类报告均生成 |
 
 ## 2. 关键设计决策
@@ -40,16 +41,20 @@
    `browser_exec` / `mobile_exec` 需你在 P4/P5 实测后自行确认，脚本不会自证。
 2. **换真实档案**：用 `profile/profile.template.json` 建立 `profile/profile.json`；先把学历、毕业时间、
    实习、证书四类关键事实确认，再跑 `validate_profile.py`。
-3. **权重校准**：用 10–20 条真实岗位跑评分，按"哪些分高但不想投/分低但想投"反馈调整
+3. **生成基础简历**（步骤 0）：档案 confirmed 事实够了之后跑一次，产出 `resumes/main-resume-v1.0.md`；
+   当前档案是占位示例，此时生成的也是示例简历，换真档案后才有意义。
+4. **打开 QQ 邮箱连接器**（`qq-mail`）：投递邮件、跟进、致谢都要用它；不打开则邮件只能出草稿。
+   打开位置：对话输入框左下角的连接器菜单。
+5. **权重校准**：用 10–20 条真实岗位跑评分，按"哪些分高但不想投/分低但想投"反馈调整
    `config/scoring.json`（记录 changelog）。
-4. **P4 浏览器辅助**（规范已就绪，待实测）：按 `references/browser-policy.md` 先完成「A 路径只读」——
+6. **P4 浏览器辅助**（规范已就绪，待实测）：按 `references/browser-policy.md` 先完成「A 路径只读」——
    `user_open_tabs` → `tabs_claim` → `dom_cua_get_visible_dom` 成功取到目标页结构，把证据登记进
    `config/settings.json` 的 `browser_exec.evidence` 后才置 `verified`；之后才谈填表与提交确认。
    执行器固定用 WorkBuddy 内置浏览器控制，不引入 Selenium/Playwright。
-5. **P5 手机接入**（规范已就绪，待设备）：本机当前**无 adb、无 scrcpy**，需先安装 platform-tools 并接入设备，
+7. **P5 手机接入**（规范已就绪，待设备）：本机当前**无 adb、无 scrcpy**，需先安装 platform-tools 并接入设备，
    按 `references/android-adb-policy.md` 第 8 节完成一次只读闭环（`dumpsys window` / `screencap` /
    `uiautomator dump` 三样均成功）才能置 `verified`。手机端上限为「只读 + 引导」，永不代点发送类按钮。
-6. **状态机补全**：如需"已撤回"，同步修改 `update_application.py`、`references/application-workflow.md`、`tests/`。
+8. **状态机补全**：如需"已撤回"，同步修改 `update_application.py`、`references/application-workflow.md`、`tests/`。
 
 ## 4. 待你确认的事项
 
@@ -71,11 +76,14 @@
 - **本机无 adb**：2026-10-29 实测 PATH 与常见安装位置均无 `adb`，也无 `scrcpy`；`android-adb-policy.md` 中的命令
   除 `input text` 的中文限制（已知社区结论）外，其余尚未在设备上逐条实测。
 - **浏览器坐标类操作未验证**：`cua_*` 工具的坐标漂移特性来自通用经验，本机尚未实测，规范里已写入「每次重新截图」的约束作为对冲。
+- **邮件通道未连通**：`qq-mail` 连接器当前未连接，`email_exec` 为 `unverified`；此时只能产出邮件草稿（主题+正文+收件人），由用户自行复制发送。
+- **基础简历尚未生成**：`profile/profile.json` 仍是占位示例，尚未产出 `main-resume-v1.0.md`；真实简历需先换真实档案。
 
 ## 6. 变更记录
 
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
+| 2026-10-29 | 0.4.0 | 简历前置 + 邮件通道：主流程**八步改九步**，新增「步骤 0：建立基础简历」（前置条件不足只出缺口清单，禁止占位符堆空简历；定制版必须标明基准主简历版本并从其派生）；`resume-policy.md` 增第 0 节（结构模板/分节取舍/完成必答三问）；新增 `references/email-policy.md`（用户本人 QQ 邮箱 `qq-mail`，禁 `agent-mail` 代发，全文展示 + 一次明确确认，禁批量，同岗位跟进仅一次，收费类招聘不发）；`settings.json` 增 `email_exec` + `executor_policy.email`；`doctor` 的外部能力表纳入 `email_exec`；新增 T17/T18，回归 18/18 |
 | 2026-10-29 | 0.3.0 | 执行器规范：新增 `references/browser-policy.md`（浏览器固定用 WorkBuddy 内置 `mcp__browser__*`，禁 Selenium/Playwright/Puppeteer，A 路径 `tabs_claim` 复用已登录标签，DOM 优先于坐标，提交单次上限，截图落 `logs/screens`）与 `references/android-adb-policy.md`（USB 单设备、uiautomator 优先、永不代点发送类、`input text` 中文限制、禁 `adb tcpip`）；`settings.json` 新增 `executor_policy`；`doctor --write` 改为保留已登记证据；SKILL.md 5.2/步骤7 增执行器分工；`.gitignore` 补 `logs/screens/`；新增 T15/T16，回归 16/16；仓库改名 Find-a-Job |
 | 2026-10-29 | 0.2.0 | WorkBuddy 装载适配：`skill/` → `skills/job-agent/`（符合 Skill 目录规范）；`common.py` 新增 `find_root()` 支持 `JOBAGENT_ROOT` 与向上查找；新增统一入口 `scripts/jobagent.py`（doctor/run/status）；`settings.json` 能力开关改为带证据的三态矩阵；`SKILL.md` 增第 0 章「装载与路径解析」、description 补触发词；新增 T13/T14，回归 14/14；README 重写 |
 | 2026-10-29 | 0.1.0 | 首版落地：数据层 + 4 个脚本 + Skill v0.1 + 12 项回归测试 |

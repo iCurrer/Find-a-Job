@@ -55,6 +55,7 @@ REQUIRED_DIRS = [
 EXTERNAL_CAPABILITIES = {
     "browser_exec": "需在 P4 阶段按 references/browser-policy.md 实测「A 路径只读」后由用户确认",
     "mobile_exec": "需在 P5 阶段按 references/android-adb-policy.md 接入设备并完成只读闭环后由用户确认",
+    "email_exec": "需按 references/email-policy.md 连接用户本人邮箱（QQ 邮箱 qq-mail）并成功发出一封邮件后由用户确认",
 }
 
 

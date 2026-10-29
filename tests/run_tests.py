@@ -304,7 +304,8 @@ def t13(ctx):
         check(capabilities[name]["state"] == "verified", "%s 应为 verified" % name)
         check(capabilities[name].get("evidence"), "%s 必须带可复现证据" % name)
 
-    for name in ("browser_exec", "mobile_exec"):
+    for name in ("browser_exec", "mobile_exec", "email_exec"):
+        check(name in capabilities, "能力矩阵缺少 %s" % name)
         check(capabilities[name]["state"] == "unverified", "%s 不得被脚本自证为 verified" % name)
 
     check("require_confirmation" in open(os.path.join(ROOT, "config", "settings.json"), "r", encoding="utf-8").read(),
@@ -422,6 +423,14 @@ def t16(ctx):
     check(mobile.get("allow_send_like_actions") is False, "手机端不得允许发送类动作")
     check(mobile.get("allow_credential_input") is False, "手机端不得允许输入凭据")
 
+    email = policy.get("email") or {}
+    check(email.get("runtime") == "user_mail_connector", "邮件执行器应为用户本人邮箱连接器")
+    check(email.get("preferred_connector") == "qq-mail", "首选邮箱连接器应为 qq-mail")
+    check(email.get("forbidden_connector") == "agent-mail", "必须禁止用 agent-mail 代发求职邮件")
+    check(email.get("allow_bulk_send") is False, "不得允许批量发信")
+    check(email.get("max_followups_per_job") == 1, "同一岗位跟进上限应为 1")
+    check(email.get("require_full_body_preview") is True, "必须要求展示邮件全文后才能发")
+
     check(policy.get("screenshot_dir") == "logs/screens", "截图目录应为 logs/screens")
 
     # 截图目录必须被 git 忽略，否则隐私截图会进公开仓库
@@ -443,7 +452,7 @@ def t16(ctx):
         )
         check(proc.returncode == 0, "doctor --write 应成功：%s" % proc.stderr[:300])
         after = load_json(settings_path)["verified_capabilities"]
-        for name in ("browser_exec", "mobile_exec"):
+        for name in ("browser_exec", "mobile_exec", "email_exec"):
             check(after[name]["state"] == "unverified", "%s 仍应为 unverified" % name)
             if before[name].get("evidence"):
                 check(after[name]["evidence"] == before[name]["evidence"],
@@ -452,6 +461,63 @@ def t16(ctx):
     finally:
         shutil.copy2(backup, settings_path)
         os.remove(backup)
+
+
+# ---------------------------------------------------------------------------
+# T17 邮件通道：必须用用户本人邮箱连接器，且发送前必须展示全文并单独确认
+# ---------------------------------------------------------------------------
+def t17(ctx):
+    ref = os.path.join(ROOT, "skills", "job-agent", "references", "email-policy.md")
+    check(os.path.exists(ref), "缺少 references/email-policy.md")
+    text = open(ref, "r", encoding="utf-8").read()
+
+    check("qq-mail" in text, "email-policy 应指定 QQ 邮箱连接器 qq-mail")
+    check("agent-mail" in text, "email-policy 应明确不用 agent-mail 代发求职邮件")
+    check("智能体邮箱" in text, "email-policy 应说明 agent-mail 是智能体邮箱、不是求职邮箱")
+    # 未连接时必须提示用户打开，而不是自己绕
+    check("未连接" in text and ("提示用户" in text or "打开" in text),
+          "email-policy 应规定连接器未连接时提示用户打开")
+    # 全文 + 一次明确确认
+    check("全文" in text, "email-policy 应要求展示邮件全文")
+    check("一次明确" in text or "明确发送许可" in text or "一次确认" in text,
+          "email-policy 应要求一次明确的发送许可")
+    # 禁止批量与重复跟进
+    check("批量" in text and "禁止" in text, "email-policy 应禁止批量发信")
+    check("同一岗位只发一次" in text or "max_followups_per_job" in text or "仅一次" in text,
+          "email-policy 应限制同一岗位仅跟进一次")
+    # 不得把密码写进对话或文件
+    check("密码" in text or "授权码" in text, "email-policy 应禁止把邮箱密码/授权码写入文件或对话")
+    # 收件地址核对（低级的抄错地址风险）
+    check("核对" in text, "email-policy 应要求核对收件人地址")
+    # 收费/索要证件必须拒发
+    check("押金" in text or "培训费" in text, "email-policy 应把收费类招聘列为不发")
+
+
+# ---------------------------------------------------------------------------
+# T18 简历前置：基础简历是步骤 0，且不得用占位符堆出空简历
+# ---------------------------------------------------------------------------
+def t18(ctx):
+    policy_path = os.path.join(ROOT, "skills", "job-agent", "references", "resume-policy.md")
+    policy = open(policy_path, "r", encoding="utf-8").read()
+
+    check("步骤 0" in policy, "resume-policy 应有「步骤 0：基础简历」章节")
+    check("main-resume-v1.0.md" in policy, "resume-policy 应指出基础简历产出路径")
+    check("不得用占位符堆出" in policy, "resume-policy 应禁止用占位符堆出看似完整的空简历")
+    check("缺口清单" in policy, "resume-policy 应要求前置条件不足时输出缺口清单")
+
+    skill_path = os.path.join(ROOT, "skills", "job-agent", "SKILL.md")
+    skill = open(skill_path, "r", encoding="utf-8").read()
+
+    # 主流程必须是九步且简历在最前
+    check("九步" in skill, "SKILL.md 主流程应声明为九步")
+    check("建立基础简历 → 导入岗位" in skill, "主流程顺序应为「建立基础简历 → 导入岗位」")
+    check("### 步骤 0：建立基础简历" in skill, "SKILL.md 应有步骤 0 章节")
+    # 禁止把示例档案当真实简历交付
+    check("示例简历" in skill or "示例档案" in skill, "SKILL.md 应要求说明占位档案生成的只是示例简历")
+    # 定制版必须从基础简历派生
+    check("从基础简历派生" in skill, "步骤 5 应要求从基础简历派生，而非从零起草")
+    # 邮件通道需在步骤 5 衔接
+    check("email-policy.md" in skill, "SKILL.md 应引用 email-policy.md")
 
 
 TESTS = [
@@ -471,6 +537,8 @@ TESTS = [
     ("T14", "项目外目录仍能解析根", t14),
     ("T15", "浏览器/手机执行器规范硬约束", t15),
     ("T16", "执行器配置与证据不被覆盖", t16),
+    ("T17", "邮件通道与发送确认约束", t17),
+    ("T18", "简历前置与缺口清单", t18),
 ]
 
 

@@ -7,11 +7,23 @@
 
 | 类型 | 路径 |
 | --- | --- |
-| 主简历 | `resumes/main-resume-v{major}.{minor}.md` |
+| 主简历（基础简历，步骤 0 产出） | `resumes/main-resume-v{major}.{minor}.md` |
+| 主简历版本说明 | `resumes/main-resume-v{major}.{minor}.VERSION.md` |
 | 岗位定制版 | `resumes/{job_id}/resume-{job_id}-v{major}.{minor}.md` |
 | 求职信 | `resumes/{job_id}/cover-letter-{job_id}-v{major}.{minor}.md` |
+| 投递/跟进邮件草稿 | `resumes/{job_id}/email-{job_id}-{type}-v{major}.{minor}.md` |
 | 版本说明 | `resumes/{job_id}/VERSION.md` |
 | 导出文件 | 与 Markdown 源文件同目录同名（`.pdf` / `.docx`） |
+
+## 基础简历优先
+
+主简历不是「投某个岗位时才做的材料」，而是流程的**步骤 0**：档案校验通过后先生成
+`resumes/main-resume-v1.0.md`，之后每个岗位只从它派生定制版（重排顺序、按 JD 术语改写表达），
+不重复从零起草。定制版头部必须写明 `基准主简历版本`。
+
+档案事实不足时**不生成简历**，只输出「缺口清单」（缺哪些字段、哪些事实仍是 `pending`、先补哪项收益最高）。
+不得用占位符堆出一份看起来完整的空简历。规则见
+[`../skills/job-agent/references/resume-policy.md`](../skills/job-agent/references/resume-policy.md) 第 0 节。
 
 ## 硬性约束
 

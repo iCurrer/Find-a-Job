@@ -50,6 +50,11 @@
       "state": "unverified",
       "evidence": "规范已定：references/android-adb-policy.md。2026-10-29 实测：adb 不在 PATH，%LOCALAPPDATA%\\Android\\Sdk\\platform-tools、C:\\Android、D:\\Android 均不存在，亦无 scrcpy。需装 adb + 接入设备 + 完成一次只读闭环（dumpsys window / screencap / uiautomator dump 三样均成功）后置 verified。",
       "checked_at": "2026-10-29T13:08:14+08:00"
+    },
+    "email_exec": {
+      "state": "unverified",
+      "evidence": "规范已定：references/email-policy.md。执行器为用户本人邮箱连接器（QQ 邮箱 connector: qq-mail），不得用 agent-mail 代发。2026-10-29 检查：qq-mail 尚未连接，故为 unverified；用户打开连接器并成功发出一封邮件后置 verified。",
+      "checked_at": "2026-10-29T13:20:00+08:00"
     }
   },
   "executor_policy": {
@@ -81,6 +86,16 @@
       "allow_credential_input": false,
       "chinese_input": "hand_back_to_user",
       "policy": "skills/job-agent/references/android-adb-policy.md"
+    },
+    "email": {
+      "runtime": "user_mail_connector",
+      "preferred_connector": "qq-mail",
+      "forbidden_connector": "agent-mail",
+      "require_full_body_preview": true,
+      "require_explicit_confirm": true,
+      "max_followups_per_job": 1,
+      "allow_bulk_send": false,
+      "policy": "skills/job-agent/references/email-policy.md"
     },
     "screenshot_dir": "logs/screens"
   },

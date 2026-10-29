@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-16%2F16-brightgreen.svg)](tests/test_cases.md)
+[![Tests](https://img.shields.io/badge/tests-18%2F18-brightgreen.svg)](tests/test_cases.md)
 
 **一个把「求职」变成可复现流程的本地工具包。** 它不替你投简历，也不编造经历——它负责把你散落在各处的
 经历整理成**可追溯的事实档案**，把岗位整理成**可解释的分数**，把每次投递整理成**有证据的记录**，
@@ -38,7 +38,7 @@ cd JobAgent
 
 python scripts/jobagent.py doctor   # ① 能力与路径自检：应输出 ok=true，能力项 verified
 python scripts/jobagent.py run      # ② 跑通示例：校验 → 标准化去重 → 评分
-python tests/run_tests.py           # ③ 回归测试：应输出 16 通过 / 0 失败
+python tests/run_tests.py           # ③ 回归测试：应输出 18 通过 / 0 失败
 ```
 
 跑完打开两个文件看结果：
@@ -108,9 +108,12 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor
 
 ---
 
-## 4. 工作流：八步，确认键在第七步前面
+## 4. 工作流：九步，简历在最前，确认键在执行前面
 
 ```
+profile/profile.json ──► resumes/main-resume-v1.0.md   ← 步骤 0：先有简历，再谈岗位
+     │ validate + 只用 confirmed 事实
+     ▼
 jobs/raw/*.json                     ← 你手工录入或粘贴的岗位原文（只增不改）
      │ normalize：字段标准化 + dedupe_key 去重
      ▼
@@ -119,17 +122,21 @@ jobs/jobs.normalized.json
      ▼
 jobs/jobs.scored.json ──► reports/scored-report.md
      │
-     │ 模型按 references/resume-policy.md 生成草稿（只用 confirmed 事实）
+     │ 从基础简历派生定制版（重排 + 措辞，不新增事实）
+     │ 岗位只留邮箱时，一并起草邮件（references/email-policy.md）
      ▼
-resumes/                            ← 版本化材料，不覆盖主简历
+resumes/{job_id}/                   ← 版本化材料，不覆盖主简历
      │
      ▼  【★ 你显式确认：公司 / 岗位 / 材料版本 / 将要执行的动作】
+     │     发邮件时还要看全文 + 给一次明确许可
      │
-人工执行 或 已验证的执行器
+人工执行 或 已验证的执行器（浏览器 / 手机 / 邮箱）
      │ update_application.py（唯一写入口，写前 .bak + JSONL 审计日志）
      ▼
 applications/applications.json ──► logs/applications.jsonl
 ```
+
+**为什么简历在最前？** 简历是资产，不是「投某个岗位时才做的东西」。先产出一份基准，之后每个岗位只做派生（重排顺序、按 JD 术语改写表达），不必从零起草。放在最后的话，每个岗位都要重复劳动，而且前后版本容易不一致。
 
 ### 三条硬规则（脚本已强制执行，不是靠自觉）
 
@@ -137,27 +144,29 @@ applications/applications.json ──► logs/applications.jsonl
 2. **硬性门槛独立阻断**：学历/证书/经验不满足 → `blocked=true`、状态直接 `不匹配`，高分不能掩盖；判不准就记 `missing_info`，不当成已满足。
 3. **提交证据**：改 `已提交` 必须带 `--evidence`，否则退出码 1；同一岗位已有提交记录时再投会被拦截。
 
-### 4.1 执行器：浏览器优先用宿主内置，手机走 adb
+### 4.1 执行器：浏览器用宿主内置，手机走 adb，邮件用你自己的邮箱
 
-第七步「执行」是整个流程里唯一碰真实世界的地方，因此单独定规范。两套规则都已在仓库里：
+第八步「执行」是整个流程里唯一碰真实世界的地方，因此单独定规范。三套规则都已在仓库里：
 
-| | 浏览器（P4） | 手机（P5） |
-| --- | --- | --- |
-| 规范文件 | [`browser-policy.md`](skills/job-agent/references/browser-policy.md) | [`android-adb-policy.md`](skills/job-agent/references/android-adb-policy.md) |
-| 运行时 | **WorkBuddy 内置浏览器控制**（`mcp__browser__*` + `workbuddy-browser-use`） | `adb`（USB 单设备） |
-| 明确禁止 | Selenium / Playwright / Puppeteer / Pyppeteer / undetected-chromedriver | `adb tcpip`（无线调试）、`adb root`、`pm clear`、`settings put` |
-| 定位策略 | DOM 优先于坐标（`dom_cua_*` 优于 `cua_*`） | `uiautomator dump` 优先于 `input tap` |
-| 登录 | **由你在浏览器里自己登录**，Skill 只 `tabs_claim` 接管那个标签页，全程不接触账号密码 | 同左，且不代填密码/验证码 |
-| 提交动作 | 填到按钮前停下；你单独授权后才点**一次** | **永不代点**「发送/投递/打招呼/确认」，有不可撤回风险 |
-| 截图落盘 | 只允许 `logs/screens/`（已被 `.gitignore` 排除） | 同上；设备端副本 `pull` 后立即删 |
+| | 浏览器（P4） | 手机（P5） | 邮件 |
+| --- | --- | --- | --- |
+| 规范文件 | [`browser-policy.md`](skills/job-agent/references/browser-policy.md) | [`android-adb-policy.md`](skills/job-agent/references/android-adb-policy.md) | [`email-policy.md`](skills/job-agent/references/email-policy.md) |
+| 运行时 | **WorkBuddy 内置浏览器控制**（`mcp__browser__*` + `workbuddy-browser-use`） | `adb`（USB 单设备） | **你自己的 QQ 邮箱**（连接器 `qq-mail`） |
+| 明确禁止 | Selenium / Playwright / Puppeteer / Pyppeteer / undetected-chromedriver | `adb tcpip`（无线调试）、`adb root`、`pm clear`、`settings put` | 用 `agent-mail` 代发（那是智能体邮箱，HR 联系不到你）、群发、把密码贴进对话 |
+| 定位策略 | DOM 优先于坐标（`dom_cua_*` 优于 `cua_*`） | `uiautomator dump` 优先于 `input tap` | 收件地址逐字符核对（`qq.com` / `qq.con`） |
+| 登录 / 身份 | **由你在浏览器里自己登录**，Skill 只 `tabs_claim` 接管那个标签页，全程不接触账号密码 | 同左，且不代填密码/验证码 | 连接器托管授权，Skill 不接触密码与授权码 |
+| 提交动作 | 填到按钮前停下；你单独授权后才点**一次** | **永不代点**「发送/投递/打招呼/确认」，有不可撤回风险 | 全文展示 + 一次明确许可后才发；同岗位跟进仅一次 |
+| 落盘 | 截图只允许 `logs/screens/`（已被 `.gitignore` 排除） | 同上；设备端副本 `pull` 后立即删 | 草稿存 `resumes/{job_id}/email-*.md`，发送记录进 `applications.json` |
 
 **为什么浏览器不自己造一套？** 一是会引入第三方依赖，破坏「clone 后无需 `pip install`」这个承诺；二是自己起浏览器就得自己处理登录，"凭据不经 Skill 之手"这条线立刻守不住。
 
 **为什么手机端比浏览器端更保守？** 网页误点提交通常能撤回或修正，App 里给 HR 发出的消息不可撤回。所以手机端的上限是「只读 + 引导」，不是「辅助投递」。
 
+**邮件为什么必须用你自己的邮箱？** 用 `agent-mail` 代发，HR 看到的发件人不是你的真实地址，回复也进不了你的邮箱，后续沟通直接断掉。所以邮件通道的第一步永远是「检查 QQ 邮箱连接器是否已连接」，没连接就提示你打开，而不是绕过去。
+
 还有两个实操坑，已经写进规范：`adb shell input text` **不支持中文**（只能 ASCII），需要中文时默认把手机交还给你；Windows 下 `adb exec-out screencap -p > x.png` 在 PowerShell 里会把 PNG 写坏，必须用「设备端落盘 → `pull` → 删设备端文件」三步。
 
-> 两项能力当前都是 `unverified`：本机没有 adb，浏览器也尚未做过「A 路径只读」实测。规范先行，实测通过并登记证据后才置 `verified`。
+> 三项能力当前都是 `unverified`：本机没有 adb，浏览器尚未做过「A 路径只读」实测，QQ 邮箱连接器也还没打开。规范先行，实测通过并登记证据后才置 `verified`。
 
 ---
 
@@ -172,7 +181,7 @@ JobAgent/
 ├── docs/                      # 设计文档（开发方案 V1.0）
 ├── skills/job-agent/          # ★ 可装进 WorkBuddy 的 Skill
 │   ├── SKILL.md               #   装载与根解析、八步主流程、工具边界、错误处理
-│   └── references/            #   档案 / 评分 / 简历 / 投递 / 安全 / 浏览器 / adb 七份规则
+│   └── references/            #   档案/评分/简历/投递/安全/浏览器/adb/邮件 八份规则
 ├── config/
 │   ├── settings.json          #   路径、运行模式、能力矩阵、来源白名单
 │   └── scoring.json           #   六维权重、阈值、版本与 changelog
@@ -197,7 +206,7 @@ JobAgent/
 │   ├── score_jobs.py          #   六维规则评分 + 硬性阻断
 │   └── update_application.py  #   投递状态机（唯一写入口）
 └── tests/
-    ├── run_tests.py           # T01–T16 回归测试
+    ├── run_tests.py           # T01–T18 回归测试
     ├── sample_profile.json    # 测试固定档案
     ├── sample_jobs.json       # 测试固定岗位
     └── test_cases.md          # 用例说明
@@ -209,10 +218,16 @@ JobAgent/
 
 1. **档案**：复制 `profile/profile.template.json` → `profile/profile.json`，逐项填写。
    每条事实标 `status`，并在 `facts_sources` 记来源与确认时间（被追问时这就是你的底稿）。
-2. **岗位**：按 `jobs/raw/raw_jobs.json` 的字段格式追加，建议一个来源一个文件。
+   > 真实信息请存 `profile.local.json`（已被 `.gitignore` 排除），别往受版本管理的 `profile.json` 里写。
+2. **先出基础简历**（步骤 0）：档案校验通过后，让 WorkBuddy「按 skills/job-agent 的 resume-policy 生成基础简历」，
+   产出 `resumes/main-resume-v1.0.md` + 版本说明。它会同时告诉你三个缺口和先补哪个收益最高。
+   档案事实不足时**不会**硬凑一份空简历，只给你缺口清单。
+3. **岗位**：按 `jobs/raw/raw_jobs.json` 的字段格式追加，建议一个来源一个文件。
    字段允许缺失——脚本会写入 `missing_info`，不会替你猜。
-3. **权重**：改 `config/scoring.json` 的六维权重（合计必须为 1.0），并追加 `version` 与 `changelog`。
-4. 重跑 `python scripts/jobagent.py run`。
+4. **权重**：改 `config/scoring.json` 的六维权重（合计必须为 1.0），并追加 `version` 与 `changelog`。
+5. 重跑 `python scripts/jobagent.py run`。
+6. **要发邮件的话**：先在对话输入框左下角的连接器菜单里打开 **QQ 邮箱**（`qq-mail`）。
+   没打开的话 Skill 只会给你草稿，不会替你发。
 
 权重怎么调才有意义：先跑 10–20 条真实岗位，把「分高但不想投」和「分低但想投」的挑出来，
 再回头动权重——否则调的是自己的手感，不是模型。
@@ -247,7 +262,7 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 | P0 环境盘点 | ✅ 已可自动化 | `jobagent.py doctor` 实测并写出能力矩阵（T13 覆盖） |
 | P1 MVP 数据层 | ✅ 已完成 | 档案 / 岗位 / 投递模板 + `schema_version` + 校验脚本 |
 | P2 Skill v0.3 | ✅ 已完成 | `SKILL.md` 十章 + 7 份 references，含装载与根解析、两套执行器规范 |
-| P3 质量测试 | ✅ 已完成 | T01–T16，16/16 通过 |
+| P3 质量测试 | ✅ 已完成 | T01–T18，18/18 通过 |
 | P4 浏览器辅助 | 📋 规范已定，待实测 | [`browser-policy.md`](skills/job-agent/references/browser-policy.md) 就绪；需先通过「A 路径只读」实测，再验证填表，最后才是提交前确认 |
 | P5 手机接入 | 📋 规范已定，待设备 | [`android-adb-policy.md`](skills/job-agent/references/android-adb-policy.md) 就绪；本机尚无 adb，接入设备后先做只读闭环 |
 | P6 常驻与扩展 | ⏳ 未开始 | 定时运行 / 服务器 / 仪表盘 |
@@ -274,7 +289,7 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 
 | 有 | 说明 |
 | --- | --- |
-| `scripts/` 五个脚本 + `tests/` 16 项回归 | 纯标准库，clone 后**无需安装依赖** |
+| `scripts/` 五个脚本 + `tests/` 18 项回归 | 纯标准库，clone 后**无需安装依赖** |
 | `skills/job-agent/` | 可直接复制进 WorkBuddy 的 Skill 目录 |
 | `docs/` 设计文档 | 《开发方案 V1.0》，13 章设计与分阶段路线 |
 | 示例数据与示例报告 | 全部虚构占位（`示例*` / `example-*` 域名），可安全浏览 |
