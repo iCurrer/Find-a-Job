@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "note": "非敏感运行配置；不要在此文件写入密码、Cookie 或令牌。",
-  "updated_at": "2026-10-29T12:57:00+08:00",
+  "updated_at": "2026-10-29T13:08:14+08:00",
   "run_mode": "semi_auto",
   "paths": {
     "profile": "profile/profile.json",
@@ -24,35 +24,67 @@
     "script_exec": {
       "state": "verified",
       "evidence": "python.exe 3.13.14（脚本自身已执行）",
-      "checked_at": "2026-10-29T12:57:00+08:00"
+      "checked_at": "2026-10-29T13:08:14+08:00"
     },
     "file_read": {
       "state": "verified",
-      "evidence": "成功读取 config/settings.json（11 个顶层键）",
-      "checked_at": "2026-10-29T12:57:00+08:00"
+      "evidence": "成功读取 config/settings.json（12 个顶层键）",
+      "checked_at": "2026-10-29T13:08:14+08:00"
     },
     "file_write": {
       "state": "verified",
       "evidence": "logs/ 下写入并删除探针文件成功",
-      "checked_at": "2026-10-29T12:57:00+08:00"
+      "checked_at": "2026-10-29T13:08:14+08:00"
     },
     "stdlib_only": {
       "state": "verified",
       "evidence": "scripts/ 全部导入均来自标准库（无需 pip 安装）",
-      "checked_at": "2026-10-29T12:57:00+08:00"
+      "checked_at": "2026-10-29T13:08:14+08:00"
     },
     "browser_exec": {
       "state": "unverified",
-      "evidence": "需在 P4 阶段实测「只读页面」验证后由用户确认",
-      "checked_at": "2026-10-29T12:57:00+08:00"
+      "evidence": "规范已定：references/browser-policy.md。执行器固定为 WorkBuddy 内置浏览器控制（mcp__browser__* + workbuddy-browser-use），禁止引入 Selenium/Playwright/Puppeteer。待用户实测「A 路径只读」（user_open_tabs → tabs_claim → dom_cua_get_visible_dom 成功取到目标页结构）后置 verified。",
+      "checked_at": "2026-10-29T13:08:14+08:00"
     },
     "mobile_exec": {
       "state": "unverified",
-      "evidence": "需在 P5 阶段接入设备后由用户确认",
-      "checked_at": "2026-10-29T12:57:00+08:00"
+      "evidence": "规范已定：references/android-adb-policy.md。2026-10-29 实测：adb 不在 PATH，%LOCALAPPDATA%\\Android\\Sdk\\platform-tools、C:\\Android、D:\\Android 均不存在，亦无 scrcpy。需装 adb + 接入设备 + 完成一次只读闭环（dumpsys window / screencap / uiautomator dump 三样均成功）后置 verified。",
+      "checked_at": "2026-10-29T13:08:14+08:00"
     }
   },
-  "capability_note": "能力矩阵由 `python scripts/jobagent.py doctor --write` 生成，每项含 state / evidence / checked_at。state 取值：verified（本次已取得可复现证据）、unverified（尚未实测，按「未接入」处理）、unavailable（实测失败）。browser_exec 与 mobile_exec 保持 unverified，需用户在 P4/P5 实测后自行确认。",
+  "executor_policy": {
+    "prefer_builtin": true,
+    "browser": {
+      "runtime": "workbuddy_builtin",
+      "tools": [
+        "mcp__browser__*",
+        "workbuddy-browser-use"
+      ],
+      "forbidden_dependencies": [
+        "selenium",
+        "playwright",
+        "puppeteer",
+        "pyppeteer",
+        "undetected-chromedriver"
+      ],
+      "tab_strategy": "reuse_user_logged_in_tab",
+      "element_strategy": "dom_before_coordinate",
+      "login_by_agent": false,
+      "max_submit_clicks_per_job": 1,
+      "policy": "skills/job-agent/references/browser-policy.md"
+    },
+    "mobile": {
+      "runtime": "adb",
+      "connection": "usb_single_device",
+      "element_strategy": "uiautomator_before_coordinate",
+      "allow_send_like_actions": false,
+      "allow_credential_input": false,
+      "chinese_input": "hand_back_to_user",
+      "policy": "skills/job-agent/references/android-adb-policy.md"
+    },
+    "screenshot_dir": "logs/screens"
+  },
+  "capability_note": "能力矩阵由 `python scripts/jobagent.py doctor --write` 生成，每项含 state / evidence / checked_at。state 取值：verified（本次已取得可复现证据）、unverified（尚未实测，按「未接入」处理）、unavailable（实测失败）。browser_exec 与 mobile_exec 保持 unverified，需用户在 P4/P5 实测后自行确认。执行器优先级与硬约束见 executor_policy：浏览器固定用宿主内置能力（禁止引入 Selenium/Playwright 等），手机走 adb 且永不代点发送类按钮。",
   "trusted_sources": [
     "company_career_site",
     "official_job_board",
@@ -66,5 +98,5 @@
     "不匹配",
     "已过期"
   ],
-  "capability_checked_at": "2026-10-29T12:57:00+08:00"
+  "capability_checked_at": "2026-10-29T13:08:14+08:00"
 }

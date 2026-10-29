@@ -1,10 +1,10 @@
 # PROJECT_STATE — JobAgent
 
 - 项目：WorkBuddy 个人求职 Agent（依据《WorkBuddy 个人求职 Agent 开发方案 V1.0》）
-- 当前版本：**0.2.0**（Skill 0.2.0 / 评分配置 1.0.0 / 数据 schema 1.0）
-- 更新时间：2026-10-29 13:00 (+08:00)
+- 当前版本：**0.3.0**（Skill 0.3.0 / 评分配置 1.0.0 / 数据 schema 1.0）
+- 更新时间：2026-10-29 13:15 (+08:00)
 - 运行模式：半自动（真实投递默认不执行）
-- 状态：P0 能力盘点已脚本化、P1 数据层、P2 Skill v0.2、P3 回归测试已完成；P4/P5/P6 未开始
+- 状态：P0 能力盘点已脚本化、P1 数据层、P2 Skill v0.3、P3 回归测试已完成；P4/P5 规范已定待实测；P6 未开始
 
 ## 1. 已完成与验证证据
 
@@ -15,10 +15,12 @@
 | 标准化 + 去重 | `scripts/normalize_jobs.py` | 6 条原始岗位 | 5 个唯一岗位 + 1 组疑似重复，原始文件未改动 |
 | 规则评分 | `scripts/score_jobs.py` | 示例岗位 + 示例档案 | 87 优先投递 / 73、70 待评估 / 54 暂缓 / 43 不匹配（学历阻断） |
 | 投递状态机 | `scripts/update_application.py` | 正常推进、无证据提交、重复提交、非法迁移 | 4 类异常均按预期拒绝（退出码 1） |
-| Skill 文档 | `skills/job-agent/SKILL.md` + 5 份 references | 章节与关键词检查（T07/T08） | 10 个章节齐全，含装载与根解析；命令与状态机对齐 |
+| Skill 文档 | `skills/job-agent/SKILL.md` + 7 份 references | 章节与关键词检查（T07/T08/T15） | 10 个章节齐全，含装载与根解析、两套执行器规范 |
+| 执行器规范 | `references/browser-policy.md`、`references/android-adb-policy.md` | T15 检查关键条款是否写死 | 浏览器点名 `mcp__browser__*`/`tabs_claim` 并禁 Selenium/Playwright/Puppeteer；手机禁发送类、标注 `input text` 中文限制 |
+| 执行器配置 | `config/settings.json:executor_policy` | T16 校验字段 + `doctor --write` 后证据不丢 | `runtime=workbuddy_builtin`、`login_by_agent=false`、单岗位提交上限 1、`logs/screens/` 已忽略 |
 | 能力盘点 | `scripts/jobagent.py doctor` | `doctor` 实测文件读写/脚本执行/标准库 | 四项 `verified` 带 evidence；浏览器/移动恒为 `unverified`（T13） |
 | 根解析适配 | `scripts/common.py:find_root()` | 从项目外目录调用（T14） | `--root` → `JOBAGENT_ROOT` → 向上查找 → 兜底，四种路径均命中 |
-| 回归测试 | `tests/run_tests.py` | `python tests/run_tests.py` | **14 通过 / 0 失败** |
+| 回归测试 | `tests/run_tests.py` | `python tests/run_tests.py` | **16 通过 / 0 失败** |
 | 运行报告 | `reports/*.md` | 打开检查 | 校验/去重/评分/运行摘要四类报告均生成 |
 
 ## 2. 关键设计决策
@@ -40,13 +42,20 @@
    实习、证书四类关键事实确认，再跑 `validate_profile.py`。
 3. **权重校准**：用 10–20 条真实岗位跑评分，按"哪些分高但不想投/分低但想投"反馈调整
    `config/scoring.json`（记录 changelog）。
-4. **P4 浏览器辅助**：仅在 P0 证明浏览器可控后启动；先验证只读页面，再验证填写，最后才是"提交前确认"。
-5. **状态机补全**：如需"已撤回"，同步修改 `update_application.py`、`references/application-workflow.md`、`tests/`。
+4. **P4 浏览器辅助**（规范已就绪，待实测）：按 `references/browser-policy.md` 先完成「A 路径只读」——
+   `user_open_tabs` → `tabs_claim` → `dom_cua_get_visible_dom` 成功取到目标页结构，把证据登记进
+   `config/settings.json` 的 `browser_exec.evidence` 后才置 `verified`；之后才谈填表与提交确认。
+   执行器固定用 WorkBuddy 内置浏览器控制，不引入 Selenium/Playwright。
+5. **P5 手机接入**（规范已就绪，待设备）：本机当前**无 adb、无 scrcpy**，需先安装 platform-tools 并接入设备，
+   按 `references/android-adb-policy.md` 第 8 节完成一次只读闭环（`dumpsys window` / `screencap` /
+   `uiautomator dump` 三样均成功）才能置 `verified`。手机端上限为「只读 + 引导」，永不代点发送类按钮。
+6. **状态机补全**：如需"已撤回"，同步修改 `update_application.py`、`references/application-workflow.md`、`tests/`。
 
 ## 4. 待你确认的事项
 
-- WorkBuddy 版本与自定义 Skill 的实际目录/加载方式。
-- 是否具备脚本执行与浏览器控制能力（决定 P4 路线）。
+- ~~WorkBuddy 版本与自定义 Skill 的实际目录/加载方式~~（已确认：`~/.workbuddy/skills/<slug>/`，`find_root()` 已适配）。
+- ~~是否具备浏览器控制能力~~（已确认：WorkBuddy 内置浏览器控制可用，规范定为唯一执行器；仍需一次 A 路径只读实测才能置 `verified`）。
+- 是否安装 Android platform-tools（adb）并允许接入设备：决定 P5 是否启动。
 - 目标招聘平台优先级（先选 1 个官网/平台试点）。
 - 评分权重与薪资底线是否符合你的真实偏好。
 
@@ -57,11 +66,17 @@
 - 材料文本由模型生成，脚本不校验最终措辞，只提供事实状态与版本规范。
 - 未纳入"已撤回"状态；未实现定时任务、服务器同步、移动端自动化。
 - 时间固定 `+08:00`；跨时区使用需改 `scripts/common.py`。
+- **P4/P5 执行器仅有规范，无实现代码**：`browser-policy.md` 与 `android-adb-policy.md` 规定的是「怎么用宿主能力」，
+  本项目不含浏览器/手机驱动代码（这是刻意设计，避免第三方依赖）。两项能力当前均为 `unverified`。
+- **本机无 adb**：2026-10-29 实测 PATH 与常见安装位置均无 `adb`，也无 `scrcpy`；`android-adb-policy.md` 中的命令
+  除 `input text` 的中文限制（已知社区结论）外，其余尚未在设备上逐条实测。
+- **浏览器坐标类操作未验证**：`cua_*` 工具的坐标漂移特性来自通用经验，本机尚未实测，规范里已写入「每次重新截图」的约束作为对冲。
 
 ## 6. 变更记录
 
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
+| 2026-10-29 | 0.3.0 | 执行器规范：新增 `references/browser-policy.md`（浏览器固定用 WorkBuddy 内置 `mcp__browser__*`，禁 Selenium/Playwright/Puppeteer，A 路径 `tabs_claim` 复用已登录标签，DOM 优先于坐标，提交单次上限，截图落 `logs/screens`）与 `references/android-adb-policy.md`（USB 单设备、uiautomator 优先、永不代点发送类、`input text` 中文限制、禁 `adb tcpip`）；`settings.json` 新增 `executor_policy`；`doctor --write` 改为保留已登记证据；SKILL.md 5.2/步骤7 增执行器分工；`.gitignore` 补 `logs/screens/`；新增 T15/T16，回归 16/16；仓库改名 Find-a-Job |
 | 2026-10-29 | 0.2.0 | WorkBuddy 装载适配：`skill/` → `skills/job-agent/`（符合 Skill 目录规范）；`common.py` 新增 `find_root()` 支持 `JOBAGENT_ROOT` 与向上查找；新增统一入口 `scripts/jobagent.py`（doctor/run/status）；`settings.json` 能力开关改为带证据的三态矩阵；`SKILL.md` 增第 0 章「装载与路径解析」、description 补触发词；新增 T13/T14，回归 14/14；README 重写 |
 | 2026-10-29 | 0.1.0 | 首版落地：数据层 + 4 个脚本 + Skill v0.1 + 12 项回归测试 |
 | 2026-10-29 | 0.1.0 | 开源整理：`common.py` 新增 `rel_path()`，产物与报告改输出相对路径（避免泄露执行机器绝对路径）；补 `LICENSE` / `THIRD_PARTY_NOTICES.md` / `.gitignore` / `.gitattributes`；`docs/` 收入设计文档；`logs/` 补 README 说明 |

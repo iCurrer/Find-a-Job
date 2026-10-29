@@ -352,6 +352,108 @@ def t14(ctx):
             check(not os.path.isabs(value), "产物路径不得为绝对路径：%s=%s" % (key, value))
 
 
+# ---------------------------------------------------------------------------
+# T15 执行器规范：浏览器优先用宿主内置能力、手机走 adb 的硬约束必须在文档里写死
+# ---------------------------------------------------------------------------
+def t15(ctx):
+    ref_dir = os.path.join(ROOT, "skills", "job-agent", "references")
+
+    browser_path = os.path.join(ref_dir, "browser-policy.md")
+    check(os.path.exists(browser_path), "缺少 references/browser-policy.md")
+    browser = open(browser_path, "r", encoding="utf-8").read()
+
+    # 必须优先用宿主内置浏览器能力，且明确禁用自建浏览器栈
+    for token in ("mcp__browser__", "tabs_claim", "user_open_tabs", "dom_cua_get_visible_dom"):
+        check(token in browser, "browser-policy 应说明内置浏览器工具 %s" % token)
+    for forbidden in ("Selenium", "Playwright", "Puppeteer"):
+        check(forbidden in browser, "browser-policy 应点名禁止 %s" % forbidden)
+    check("DOM 优先于坐标" in browser, "browser-policy 应声明 DOM 优先于坐标")
+    # 核心安全设计：不由 Agent 登录
+    check("不由我们完成登录" in browser or "不接触账号密码" in browser,
+          "browser-policy 应明确登录由用户完成")
+    # 提交只允许一次
+    check("一次" in browser and ("submit" in browser.lower() or "提交" in browser),
+          "browser-policy 应限制提交只点一次")
+    # 截图落盘位置
+    check("logs/screens" in browser, "browser-policy 应规定截图只能落 logs/screens/")
+
+    adb_path = os.path.join(ref_dir, "android-adb-policy.md")
+    check(os.path.exists(adb_path), "缺少 references/android-adb-policy.md")
+    adb = open(adb_path, "r", encoding="utf-8").read()
+
+    # 手机端必须永不代点发送类动作
+    check("allow_send_like_actions" in open(os.path.join(ROOT, "config", "settings.json"), "r", encoding="utf-8").read()
+          or "禁止" in adb, "android-adb-policy 应禁止发送类动作")
+    check("发送" in adb and "禁止" in adb, "android-adb-policy 应明确禁止发送/投递类按钮")
+    # 中文输入硬限制必须写明（input text 不支持非 ASCII）
+    check("input text" in adb, "android-adb-policy 应写明 adb input text 的用法")
+    check("ASCII" in adb or "非 ASCII" in adb, "android-adb-policy 应写明中文输入的限制")
+    # 无线调试风险
+    check("tcpip" in adb, "android-adb-policy 应禁止 adb tcpip")
+    # 定位优先
+    check("uiautomator" in adb, "android-adb-policy 应要求先用 uiautomator 定位")
+    # 隐私
+    check("logs/screens" in adb, "android-adb-policy 应规定截图只能落 logs/screens/")
+    # 必须诚实声明当前未验证
+    check("unverified" in adb, "android-adb-policy 应标注当前能力状态为 unverified")
+
+
+# ---------------------------------------------------------------------------
+# T16 执行器配置：settings 声明了执行器优先级，且 doctor --write 不得冲掉已登记的证据
+# ---------------------------------------------------------------------------
+def t16(ctx):
+    settings_path = os.path.join(ROOT, "config", "settings.json")
+    settings = load_json(settings_path)
+
+    policy = settings.get("executor_policy")
+    check(isinstance(policy, dict), "settings.json 应包含 executor_policy")
+    browser = policy.get("browser") or {}
+    mobile = policy.get("mobile") or {}
+
+    check(browser.get("runtime") == "workbuddy_builtin",
+          "浏览器执行器应固定为宿主内置，实际：%r" % browser.get("runtime"))
+    check(browser.get("login_by_agent") is False, "不得由 Agent 完成登录")
+    check(browser.get("max_submit_clicks_per_job") == 1, "每岗位提交点击上限应为 1")
+    for dep in ("selenium", "playwright", "puppeteer"):
+        check(dep in (browser.get("forbidden_dependencies") or []),
+              "禁止依赖清单应包含 %s" % dep)
+
+    check(mobile.get("runtime") == "adb", "手机执行器应为 adb")
+    check(mobile.get("allow_send_like_actions") is False, "手机端不得允许发送类动作")
+    check(mobile.get("allow_credential_input") is False, "手机端不得允许输入凭据")
+
+    check(policy.get("screenshot_dir") == "logs/screens", "截图目录应为 logs/screens")
+
+    # 截图目录必须被 git 忽略，否则隐私截图会进公开仓库
+    proc = subprocess.run(
+        ["git", "check-ignore", "-q", "logs/screens/probe.png"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    check(proc.returncode == 0, "logs/screens/ 必须被 .gitignore 排除")
+
+    # doctor --write 后，外部能力的已登记证据必须保留（不得被通用文案冲掉）
+    before = load_json(settings_path)["verified_capabilities"]
+    backup = settings_path + ".t16bak"
+    shutil.copy2(settings_path, backup)
+    try:
+        proc = subprocess.run(
+            [PYTHON, os.path.join(ROOT, "scripts", "jobagent.py"), "doctor", "--write"],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+            errors="replace", env=ENV,
+        )
+        check(proc.returncode == 0, "doctor --write 应成功：%s" % proc.stderr[:300])
+        after = load_json(settings_path)["verified_capabilities"]
+        for name in ("browser_exec", "mobile_exec"):
+            check(after[name]["state"] == "unverified", "%s 仍应为 unverified" % name)
+            if before[name].get("evidence"):
+                check(after[name]["evidence"] == before[name]["evidence"],
+                      "%s 的已登记证据被 doctor --write 冲掉了" % name)
+        check("executor_policy" in load_json(settings_path), "doctor --write 不得删除 executor_policy")
+    finally:
+        shutil.copy2(backup, settings_path)
+        os.remove(backup)
+
+
 TESTS = [
     ("T01", "档案字段缺失提示", t01),
     ("T02", "不同链接同一岗位去重", t02),
@@ -367,6 +469,8 @@ TESTS = [
     ("T12", "本地脚本不联网", t12),
     ("T13", "能力盘点有证据且不自证浏览器", t13),
     ("T14", "项目外目录仍能解析根", t14),
+    ("T15", "浏览器/手机执行器规范硬约束", t15),
+    ("T16", "执行器配置与证据不被覆盖", t16),
 ]
 
 

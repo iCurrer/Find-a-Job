@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-29T12:57:01+08:00",
+  "generated_at": "2026-10-29T13:10:35+08:00",
   "generated_by": "scripts/normalize_jobs.py",
   "source_input": "jobs/raw/raw_jobs.json",
   "counts": {

@@ -1,7 +1,7 @@
 ---
 name: job-agent
 description: 个人求职流程编排 Skill。以本地个人档案为唯一事实来源，完成岗位导入、标准化去重、可解释的六维评分、简历/求职信/网申答案草稿与投递状态记录；任何外部写入（投递、发邮件、上传资料）前必须由用户显式确认。当用户提到「求职、找工作、岗位、投递、岗位评估、岗位打分、优先级排序、简历定制、求职信、网申、面试跟进、求职日报、求职周报、Offer 比较」，或提供招聘链接/岗位截图/岗位 JSON 要求分析或导入，或要求查询、更新投递记录时使用。
-version: 0.2.0
+version: 0.3.0
 ---
 
 # job-agent（个人求职流程 Skill）
@@ -53,7 +53,7 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor
 ### 1.1 名称与版本
 
 - 名称：`job-agent`（个人求职流程）
-- 版本：`0.2.0`（与 `PROJECT_STATE.md`、报告头中的版本号保持一致）
+- 版本：`0.3.0`（与 `PROJECT_STATE.md`、报告头中的版本号保持一致）
 - 定位：以 WorkBuddy 为决策中枢，以 Skill 编排流程，以**可验证的本地脚本**完成确定性处理；网页/手机操作在验证通过前保留为人工步骤。
 
 ### 1.2 用途
@@ -155,6 +155,8 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写
 | `references/resume-policy.md` | 生成、修改、导出一份对外的简历/求职信/网申答案之前 |
 | `references/application-workflow.md` | 更新投递状态、登记提交证据、重试或判断重复申请之前 |
 | `references/security-policy.md` | 任何涉及敏感信息、外部写入、日志与平台边界的操作之前 |
+| `references/browser-policy.md` | **任何浏览器操作之前**（P4）：标签页接管、只读抓取、填写、提交确认、截图落盘 |
+| `references/android-adb-policy.md` | **任何手机操作之前**（P5）：设备连接、只读探测、输入与点击、隐私落盘 |
 
 ### 2.5 配置检查
 
@@ -243,9 +245,21 @@ python scripts/score_jobs.py --jobs jobs/jobs.normalized.json --profile profile/
 ### 步骤 7：执行
 
 - 仅当同时满足：① 执行器能力已有 P0 证据；② 目标平台在白名单且规则允许；③ 用户已显式确认。
-- 执行中只做用户已批准的动作；页面结构变化、出现验证码/登录保护、信息冲突时立即停止并转为 `需人工介入`。
+- **执行器按场景分工**（详见 `references/browser-policy.md`、`references/android-adb-policy.md`）：
+
+  | 场景 | 执行器 | 上限 |
+  | --- | --- | --- |
+  | 企业官网 / 网申表单 | 浏览器（A 路径：接管用户已登录标签页） | 填到提交按钮前，默认停；用户单独授权后可点**一次** |
+  | 岗位信息采集 | 浏览器只读 | L0/L1 |
+  | 仅 App 内提供的功能 | 手机只读 + 引导 | L0/L1，**永不代点发送类按钮** |
+  | 给 HR 发消息 | 无 | 两个执行器都不做，永远人工 |
+
+- 浏览器端接管标签页前必须复述「我要操作的是：<标题> — <URL>」并得到确认；不得由本 Skill 完成登录（不接触账号密码与令牌）。
+- 执行中只做用户已批准的动作；页面结构变化、出现验证码/登录保护、信息冲突时立即停止并转为 `需人工介入`，**不得换选择器或降级到坐标点击来绕过**。
 - 只有拿到**可验证的提交结果**（平台确认页、确认邮件、申请编号等）才可标记 `已提交`；仅「已填写」「已点击提交」不算。
+- 提交类动作只允许执行一次；点击后无论结果如何都不得再点（防重复投递）。
 - 执行器未接入时，输出人工操作清单，由用户自行完成并在回执中登记结果；本 Skill 不代点提交。
+- 截图与 UI 树只允许落 `logs/screens/`（已被 `.gitignore` 排除），中间态用完即删，报告只记文件名不转录内容。
 
 ### 步骤 8：记录
 
@@ -322,10 +336,26 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 
 ### 5.2 浏览器/手机工具调用前
 
-- [ ] P0 能力盘点中有该项的验证证据（读取页面能力优先验证）。
-- [ ] 目标平台在 `config/settings.json` 白名单内，且平台规则允许相应操作。
+**执行器选择：优先用宿主内置能力，不自建浏览器栈。**
+
+| 执行器 | 用什么 | 完整规则 |
+| --- | --- | --- |
+| 浏览器 | WorkBuddy 内置浏览器控制（`mcp__browser__*` 工具族）+ `workbuddy-browser-use` Skill | `references/browser-policy.md` |
+| 手机 | `adb`（USB 单设备） | `references/android-adb-policy.md` |
+
+禁止为浏览器操作安装 Selenium / Playwright / Puppeteer 等第三方依赖：会破坏「零第三方依赖」承诺，并与本地可移植定位冲突。
+
+调用前逐项确认：
+
+- [ ] P0 能力盘点中有该项的验证证据（`browser_exec` / `mobile_exec` 为 `verified`）。
+- [ ] 已加载对应 policy 文件，并按其中「快速自检」逐条过了一遍。
+- [ ] 浏览器：走 **A 路径**（用户已登录标签页 → `tabs_claim`），而非由本 Skill 登录；接管前已向用户复述标签标题与 URL。
+- [ ] 手机：`adb devices -l` 恰好 1 台 `device`；多设备已带 `-s`。
+- [ ] 本轮动作属于 L0 只读 / L1 导航 / L2 填写 / L3 提交 哪一层，该层的确认是否拿到。
 - [ ] 操作是用户已确认的具体动作，而非「顺便多投几个」。
-- [ ] 具备失败即停的机制：页面结构变化、验证码、登录失效时转为 `需人工介入`。
+- [ ] 具备失败即停的机制：页面结构变化、验证码、登录失效时转为 `需人工介入`，**不重试绕过**。
+
+**手机端的额外硬约束**：禁止点击「发送 / 投递 / 打招呼 / 立即沟通 / 确认」类按钮，禁止输入密码或验证码，需要中文输入时默认交还用户（`adb shell input text` 不支持非 ASCII）。
 
 以上任一不满足 → 视为**未接入**，本次不调用。
 
@@ -454,6 +484,7 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
 | 0.1.0 | 2026-10-29 | 首版：覆盖方案 4.2 的 8 个章节，对齐构建契约的字段、脚本与状态机 |
+| 0.3.0 | 2026-10-29 | 执行器规范落地：新增 `references/browser-policy.md`（浏览器固定用 WorkBuddy 内置能力、禁止引入 Selenium/Playwright、复用用户已登录标签页 `tabs_claim`、DOM 优先于坐标、提交单次上限、截图落 `logs/screens`）与 `references/android-adb-policy.md`（USB 单设备、uiautomator 优先、永不代点发送类、`input text` 不支持中文、禁 `adb tcpip`）；5.2 增执行器选择表与手机端额外硬约束；步骤 7 增执行器分工表；`config/settings.json` 新增 `executor_policy`；`doctor --write` 改为保留已登记的外部能力证据；新增 T15/T16，回归 16/16 |
 | 0.2.0 | 2026-10-29 | 适配 WorkBuddy 装载：新增第 0 章「装载与路径解析」（根解析优先级 + 部署形态）、2.3 改由 `jobagent.py doctor` 实测能力矩阵、4.2 增补统一入口三命令；`description` 补齐触发词以便自动命中 |
 
 维护要求：Skill 版本、脚本命令、状态机、评分权重任一项变化时，同步更新本文件与对应 reference；评分权重变更还需在 `config/scoring.json` 中记录 `version` 与 `changelog`。

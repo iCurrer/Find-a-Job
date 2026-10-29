@@ -7,6 +7,7 @@ profile/*.private.json
 # 运行产物中的个人痕迹
 logs/*.jsonl
 logs/*.log
+logs/screens/
 applications/applications.json.bak
 applications/evidence/*
 !applications/evidence/README.md

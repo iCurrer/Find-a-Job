@@ -32,6 +32,8 @@ python tests/run_tests.py
 | T12 | 未授权外发个人信息 | 静态扫描 `scripts/*.py` | 无网络库依赖；`settings.json` 保留外部写入确认点 | PASS |
 | T13 | P0 能力盘点是否可信 | 执行 `jobagent.py doctor` | 文件读/写、脚本执行、标准库自检均为 `verified` 且带 `evidence`；`browser_exec`/`mobile_exec` 恒为 `unverified`（不得自证） | PASS |
 | T14 | Skill 装在别处还能不能跑 | 从项目外目录（系统临时目录）调用 `jobagent.py`，再用 `JOBAGENT_ROOT` 覆盖 | 两种方式都能解析到项目根，`missing_dirs` 为空，产物路径非绝对路径 | PASS |
+| T15 | 执行器规范是否真的把约束写死 | 读 `references/browser-policy.md` 与 `references/android-adb-policy.md`，检查关键条款 | 浏览器必须点名 `mcp__browser__`/`tabs_claim`/`user_open_tabs` 并显式禁止 Selenium/Playwright/Puppeteer、声明 DOM 优先、登录由用户完成、提交只点一次、截图落 `logs/screens`；手机必须禁止发送类动作、写明 `adb input text` 的 ASCII 限制、禁止 `adb tcpip`、要求 uiautomator 优先、标注当前为 `unverified` | PASS |
+| T16 | 执行器配置与证据能否被误覆盖 | 读 `settings.json` 校验 `executor_policy`；`git check-ignore` 验证截图目录；备份后跑 `doctor --write` 比对证据 | `runtime=workbuddy_builtin`、登录不由 Agent 完成、单岗位提交上限 1、禁止依赖清单齐全；手机端 `allow_send_like_actions=false`；`logs/screens/` 被忽略；`doctor --write` 后已登记证据与 `executor_policy` 均未被冲掉 | PASS |
 
 ## 说明与边界
 
@@ -41,4 +43,4 @@ python tests/run_tests.py
 4. **T12 是静态检查**：脚本不引入网络库即可证明不会主动外发；用户环境中的 WorkBuddy 浏览器能力另需 P0 验证。
 5. **T13 的边界**：doctor 能证明「脚本跑得动、文件读得动」，**不能**证明「浏览器可控」；后者只能由用户实测后确认，脚本刻意不给出 `verified`。
 6. **T14 的边界**：根解析的兜底是「`scripts/` 的上级目录」，若同一台机器存在多份 JobAgent 副本，请用 `JOBAGENT_ROOT` 显式指定，避免歧义。
-7. 回归测试是**发布门槛**的一部分：修改脚本、评分权重、状态机后必须重新运行并保持 14/14。
+7. 回归测试是**发布门槛**的一部分：修改脚本、评分权重、状态机后必须重新运行并保持 16/16。

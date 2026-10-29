@@ -51,9 +51,10 @@ REQUIRED_DIRS = [
 ]
 
 # doctor 不去猜这两个能力：只有真实跑过一次目标场景（P4/P5）才算数。
+# 默认文案即指向对应规范文件，避免写回时丢失「该按什么标准验证」这一关键信息。
 EXTERNAL_CAPABILITIES = {
-    "browser_exec": "需在 P4 阶段实测「只读页面」验证后由用户确认",
-    "mobile_exec": "需在 P5 阶段接入设备后由用户确认",
+    "browser_exec": "需在 P4 阶段按 references/browser-policy.md 实测「A 路径只读」后由用户确认",
+    "mobile_exec": "需在 P5 阶段按 references/android-adb-policy.md 接入设备并完成只读闭环后由用户确认",
 }
 
 
@@ -144,9 +145,18 @@ def cmd_doctor(root, write):
         "checked_at": checked_at,
     }
 
-    # 外部能力：不猜，保持未验证
+    # 外部能力：不猜，保持未验证。
+    # 若 settings 中已登记过更具体的原因（含实测发现、规范路径等），保留它，只刷新 checked_at，
+    # 避免 doctor --write 把用户/维护者写下的证据冲成通用文案。
+    existing_caps = (settings or {}).get("verified_capabilities") or {}
     for name, reason in EXTERNAL_CAPABILITIES.items():
-        capabilities[name] = {"state": "unverified", "evidence": reason, "checked_at": checked_at}
+        prev = existing_caps.get(name) or {}
+        keep = prev.get("state") == "unverified" and prev.get("evidence")
+        capabilities[name] = {
+            "state": "unverified",
+            "evidence": prev["evidence"] if keep else reason,
+            "checked_at": checked_at,
+        }
 
     result = {
         "ok": not missing and capabilities["file_read"]["state"] == "verified",
