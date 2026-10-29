@@ -166,7 +166,8 @@ applications/applications.json ──► logs/applications.jsonl
 
 还有两个实操坑，已经写进规范：`adb shell input text` **不支持中文**（只能 ASCII），需要中文时默认把手机交还给你；Windows 下 `adb exec-out screencap -p > x.png` 在 PowerShell 里会把 PNG 写坏，必须用「设备端落盘 → `pull` → 删设备端文件」三步。
 
-> 三项能力当前都是 `unverified`：本机没有 adb，浏览器尚未做过「A 路径只读」实测，QQ 邮箱连接器也还没打开。规范先行，实测通过并登记证据后才置 `verified`。
+> 三项能力当前都是 `unverified`：本机没有 adb；浏览器尚未做过「A 路径只读」实测；QQ 邮箱连接器已连上，
+> 但还没实际发出过一封邮件。规范先行，实测通过并登记证据后才置 `verified`。
 
 ---
 
@@ -226,8 +227,8 @@ JobAgent/
    字段允许缺失——脚本会写入 `missing_info`，不会替你猜。
 4. **权重**：改 `config/scoring.json` 的六维权重（合计必须为 1.0），并追加 `version` 与 `changelog`。
 5. 重跑 `python scripts/jobagent.py run`。
-6. **要发邮件的话**：先在对话输入框左下角的连接器菜单里打开 **QQ 邮箱**（`qq-mail`）。
-   没打开的话 Skill 只会给你草稿，不会替你发。
+6. **要发邮件的话**：在对话输入框左下角的连接器菜单里确认 **QQ 邮箱**（`qq-mail`）已连接。
+   连上后 Skill 才能用你自己的邮箱发信；没连上时它只给草稿，不会替你发，也不会改用智能体邮箱代发。
 
 权重怎么调才有意义：先跑 10–20 条真实岗位，把「分高但不想投」和「分低但想投」的挑出来，
 再回头动权重——否则调的是自己的手感，不是模型。

@@ -53,8 +53,8 @@
     },
     "email_exec": {
       "state": "unverified",
-      "evidence": "规范已定：references/email-policy.md。执行器为用户本人邮箱连接器（QQ 邮箱 connector: qq-mail），不得用 agent-mail 代发。2026-10-29 检查：qq-mail 尚未连接，故为 unverified；用户打开连接器并成功发出一封邮件后置 verified。",
-      "checked_at": "2026-10-29T13:20:00+08:00"
+      "evidence": "规范已定：references/email-policy.md。执行器为用户本人邮箱连接器 QQ 邮箱（qq-mail），不得用 agent-mail 代发。2026-10-29T13:20 检查：qq-mail 已连接（bound=true, enabled=true）。剩余待测：实际发出一封邮件并确认送达。",
+      "checked_at": "2026-10-29T13:20:59+08:00"
     }
   },
   "executor_policy": {
