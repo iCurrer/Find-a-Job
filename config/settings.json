@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "note": "非敏感运行配置；不要在此文件写入密码、Cookie 或令牌。",
-  "updated_at": "2026-10-29T13:08:14+08:00",
+  "updated_at": "2026-10-29T13:34:09+08:00",
   "run_mode": "semi_auto",
   "paths": {
     "profile": "profile/profile.json",
@@ -24,37 +24,37 @@
     "script_exec": {
       "state": "verified",
       "evidence": "python.exe 3.13.14（脚本自身已执行）",
-      "checked_at": "2026-10-29T13:08:14+08:00"
+      "checked_at": "2026-10-29T13:34:09+08:00"
     },
     "file_read": {
       "state": "verified",
-      "evidence": "成功读取 config/settings.json（12 个顶层键）",
-      "checked_at": "2026-10-29T13:08:14+08:00"
+      "evidence": "成功读取 config/settings.json（13 个顶层键）",
+      "checked_at": "2026-10-29T13:34:09+08:00"
     },
     "file_write": {
       "state": "verified",
       "evidence": "logs/ 下写入并删除探针文件成功",
-      "checked_at": "2026-10-29T13:08:14+08:00"
+      "checked_at": "2026-10-29T13:34:09+08:00"
     },
     "stdlib_only": {
       "state": "verified",
       "evidence": "scripts/ 全部导入均来自标准库（无需 pip 安装）",
-      "checked_at": "2026-10-29T13:08:14+08:00"
+      "checked_at": "2026-10-29T13:34:09+08:00"
     },
     "browser_exec": {
       "state": "unverified",
       "evidence": "规范已定：references/browser-policy.md。执行器固定为 WorkBuddy 内置浏览器控制（mcp__browser__* + workbuddy-browser-use），禁止引入 Selenium/Playwright/Puppeteer。待用户实测「A 路径只读」（user_open_tabs → tabs_claim → dom_cua_get_visible_dom 成功取到目标页结构）后置 verified。",
-      "checked_at": "2026-10-29T13:08:14+08:00"
+      "checked_at": "2026-10-29T13:34:09+08:00"
     },
     "mobile_exec": {
       "state": "unverified",
       "evidence": "规范已定：references/android-adb-policy.md。2026-10-29 实测：adb 不在 PATH，%LOCALAPPDATA%\\Android\\Sdk\\platform-tools、C:\\Android、D:\\Android 均不存在，亦无 scrcpy。需装 adb + 接入设备 + 完成一次只读闭环（dumpsys window / screencap / uiautomator dump 三样均成功）后置 verified。",
-      "checked_at": "2026-10-29T13:08:14+08:00"
+      "checked_at": "2026-10-29T13:34:09+08:00"
     },
     "email_exec": {
       "state": "unverified",
       "evidence": "规范已定：references/email-policy.md。执行器为用户本人邮箱连接器 QQ 邮箱（qq-mail），不得用 agent-mail 代发。2026-10-29T13:20 检查：qq-mail 已连接（bound=true, enabled=true）。剩余待测：实际发出一封邮件并确认送达。",
-      "checked_at": "2026-10-29T13:20:59+08:00"
+      "checked_at": "2026-10-29T13:34:09+08:00"
     }
   },
   "executor_policy": {
@@ -97,6 +97,31 @@
       "allow_bulk_send": false,
       "policy": "skills/job-agent/references/email-policy.md"
     },
+    "search": {
+      "config": "config/search.json",
+      "channel_order": [
+        "webfetch",
+        "public_tab",
+        "claimed_tab"
+      ],
+      "channel_note": "C（WebFetch 文本只读）→ B（tabs_new 公开页）→ A（tabs_claim 用户已登录标签页）。能用 C 就不打扰用户；需要登录态才走 A。",
+      "max_pages_per_query": 3,
+      "collect_delay_seconds_min": 2,
+      "stop_on": [
+        "captcha",
+        "login_wall",
+        "rate_limit_notice",
+        "structure_mismatch"
+      ],
+      "forbidden": [
+        "platform_private_api",
+        "bulk_concurrent_crawl",
+        "click_contact_or_apply",
+        "bypass_captcha"
+      ],
+      "result_source": "campus_vertical_search",
+      "policy": "skills/job-agent/references/job-search-policy.md"
+    },
     "screenshot_dir": "logs/screens"
   },
   "capability_note": "能力矩阵由 `python scripts/jobagent.py doctor --write` 生成，每项含 state / evidence / checked_at。state 取值：verified（本次已取得可复现证据）、unverified（尚未实测，按「未接入」处理）、unavailable（实测失败）。browser_exec 与 mobile_exec 保持 unverified，需用户在 P4/P5 实测后自行确认。执行器优先级与硬约束见 executor_policy：浏览器固定用宿主内置能力（禁止引入 Selenium/Playwright 等），手机走 adb 且永不代点发送类按钮。",
@@ -106,6 +131,7 @@
     "referral",
     "manual_import"
   ],
+  "trusted_sources_note": "搜索抓取来的岗位 source 固定为 campus_vertical_search，刻意不列入 trusted_sources：聚合平台存在转载、过期、信息不全，信息可信度维度理应比官网直招低一档（score_jobs.py 会落入「有链接但来源未登记」档）。同一岗位若在官网也有，以官网那条为主记录。",
   "job_status_enum": [
     "待评估",
     "优先投递",
@@ -113,5 +139,5 @@
     "不匹配",
     "已过期"
   ],
-  "capability_checked_at": "2026-10-29T13:08:14+08:00"
+  "capability_checked_at": "2026-10-29T13:34:09+08:00"
 }

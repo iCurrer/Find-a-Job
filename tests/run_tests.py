@@ -520,6 +520,116 @@ def t18(ctx):
     check("email-policy.md" in skill, "SKILL.md 应引用 email-policy.md")
 
 
+# ---------------------------------------------------------------------------
+# T19 搜索画像与策略：平台配置必须自证过、通道顺序与硬边界必须写死
+# ---------------------------------------------------------------------------
+def t19(ctx):
+    config_path = os.path.join(ROOT, "config", "search.json")
+    check(os.path.exists(config_path), "缺少 config/search.json")
+    config = load_json(config_path)
+
+    for key in ("cities", "keyword_groups", "platforms", "exclude_keywords", "constraints", "search_policy"):
+        check(key in config, "search.json 缺少字段: %s" % key)
+
+    check(len(config["cities"]) >= 1, "至少要有一个搜索城市")
+    check(len(config["keyword_groups"]) >= 1, "至少要有一个关键词组")
+
+    for platform in config["platforms"]:
+        pid = platform.get("id")
+        check(pid, "platform 缺少 id")
+        check(str(platform.get("search_url", "")).startswith("https://"), "%s 的 search_url 必须是 https" % pid)
+        check(str(platform.get("browse_url", "")).startswith("https://"), "%s 的 browse_url 必须是 https" % pid)
+        check(
+            platform.get("fetch_mode") in ("webfetch_ok", "needs_dom"),
+            "%s 的 fetch_mode 非法: %s" % (pid, platform.get("fetch_mode")),
+        )
+        check(isinstance(platform.get("keyword_param_works"), bool), "%s 必须声明 keyword_param_works" % pid)
+        if platform.get("keyword_param_works"):
+            check("{keyword}" in str(platform.get("search_url")), "%s 宣称支持关键词，则 search_url 需含 {keyword}" % pid)
+        if platform.get("params_verified"):
+            check(platform.get("verified_at"), "%s 标为已核对就必须写 verified_at" % pid)
+
+    excludes = " ".join(config["exclude_keywords"])
+    for word in ("审计", "销售", "硬件"):
+        check(word in excludes, "排除词应覆盖个人明确不投的方向: %s" % word)
+
+    constraints = config["constraints"]
+    check(constraints.get("graduate_year") == 2027, "届别应为 2027")
+    check(int(constraints.get("max_pages_per_query") or 99) <= 5, "单查询翻页上限不得过高")
+
+    policy_path = os.path.join(ROOT, "skills", "job-agent", "references", "job-search-policy.md")
+    check(os.path.exists(policy_path), "缺少 references/job-search-policy.md")
+    policy = open(policy_path, encoding="utf-8").read()
+
+    check("C → B → A" in policy, "搜索策略必须固定通道尝试顺序 C → B → A")
+    check("翻页上限" in policy, "搜索策略必须写明翻页上限")
+    check("验证码" in policy and "立即停止" in policy, "搜索策略必须写明遇验证码立即停止")
+    check("非公开接口" in policy, "搜索策略必须禁止调用平台非公开接口")
+    check("campus_vertical_search" in policy, "搜索策略必须规定 source 取值")
+    check("凭常识编造" in policy or "不得假装已搜" in policy, "搜索策略必须禁止能力不足时编造岗位")
+
+    browser_policy = open(
+        os.path.join(ROOT, "skills", "job-agent", "references", "browser-policy.md"), encoding="utf-8"
+    ).read()
+    check("C 路径" in browser_policy and "WebFetch" in browser_policy, "browser-policy 需补充 C 路径（文本只读）")
+    check("X（禁止）" in browser_policy, "登录类操作应编号为 X（禁止），不得占用 C")
+
+
+# ---------------------------------------------------------------------------
+# T20 搜索计划生成：链接可点、编码正确、排除词在生成前生效、不写采集结果
+# ---------------------------------------------------------------------------
+def t20(ctx):
+    import tempfile
+
+    proc = run("search_urls.py", ["--stdout"])
+    check(proc["code"] == 0, "生成搜索计划应成功：%s%s" % (proc["stdout"][:300], proc["stderr"][:300]))
+    check("https://" in proc["stdout"], "计划里应含可点开的链接")
+    check("本文件只有搜索链接" in proc["stdout"] or "不含任何采集结果" in proc["stdout"], "计划应声明不含采集结果")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        proc = run("search_urls.py", ["--out-dir", tmp, "--city", "上海", "--group", "fin_impl"])
+        check(proc["code"] == 0, "限定条件生成应成功：%s%s" % (proc["stdout"][:300], proc["stderr"][:300]))
+        payload = proc["json"]
+        check(payload["ok"] is True, "应返回 ok=true")
+        plan_files = [name for name in os.listdir(tmp) if name.startswith("search-plan-") and name.endswith(".json")]
+        check(plan_files, "应在输出目录生成 search-plan-*.json")
+        plan = load_json(os.path.join(tmp, sorted(plan_files)[-1]))["plan"]
+        check(len(plan) > 0, "应生成至少一条查询")
+
+        for item in plan:
+            check(item["url"].startswith("https://"), "链接必须是 https：%s" % item["url"])
+            check(" " not in item["url"], "链接不得含空格（说明编码有误）：%s" % item["url"])
+            check(item["city"] == "上海", "城市过滤失效：%s" % item["city"])
+            check(item["keyword_param_works"] in (True, False), "keyword_param_works 应为布尔值")
+
+        non_ascii = [item for item in plan if any(ord(ch) > 127 for ch in item["url"].split("://", 1)[1])]
+        check(not non_ascii, "链接不得含未编码的中文：%s" % non_ascii[:1])
+
+        # 排除词必须在生成前生效：把该组每个关键词都命中排除词，应整组跳过
+        config = load_json(os.path.join(ROOT, "config", "search.json"))
+        config["exclude_keywords"] = list(config["exclude_keywords"]) + ["会计", "税务"]
+        custom = os.path.join(tmp, "search-custom.json")
+        with open(custom, "w", encoding="utf-8") as fh:
+            json.dump(config, fh, ensure_ascii=False)
+
+        proc = run("search_urls.py", ["--config", custom, "--out-dir", tmp, "--group", "accounting"])
+        check(proc["code"] == 1, "关键词全被排除时应以退出码 1 结束，实际 %s" % proc["code"])
+        payload = proc["json"]
+        check(payload["ok"] is False, "全被排除时 ok 应为 false")
+        check("没有生成任何查询" in (payload.get("error") or ""), "应说明未生成任何查询")
+        skipped = payload.get("skipped") or []
+        check(skipped, "应报告被排除的关键词")
+        check(
+            all("排除词" in (item.get("reason") or "") for item in skipped),
+            "排除原因应指明命中的排除词：%s" % skipped,
+        )
+
+        # 清理：临时目录在 with 结束时自动删除
+        for name in os.listdir(tmp):
+            if name.startswith("search-plan-"):
+                os.remove(os.path.join(tmp, name))
+
+
 TESTS = [
     ("T01", "档案字段缺失提示", t01),
     ("T02", "不同链接同一岗位去重", t02),
@@ -539,6 +649,8 @@ TESTS = [
     ("T16", "执行器配置与证据不被覆盖", t16),
     ("T17", "邮件通道与发送确认约束", t17),
     ("T18", "简历前置与缺口清单", t18),
+    ("T19", "搜索画像与通道硬约束", t19),
+    ("T20", "搜索计划生成与排除词生效", t20),
 ]
 
 

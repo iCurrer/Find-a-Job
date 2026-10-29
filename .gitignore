@@ -15,6 +15,14 @@ resumes/*.pdf
 resumes/*.docx
 resumes/*.doc
 
+# 搜索计划：每天生成一份，含本机搜索偏好；属产物不入库
+jobs/raw/search-plan-*.md
+jobs/raw/search-plan-*.json
+# 抓取结果含真实岗位，由使用者自行决定是否提交
+jobs/raw/shixiseng-*.json
+jobs/raw/yingjiesheng-*.json
+jobs/raw/nowcoder-*.json
+
 # ---------------- 密钥 / 凭据 ----------------
 .env
 .env.*

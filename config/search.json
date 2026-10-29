@@ -1,0 +1,151 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-10-29T13:35:00+08:00",
+  "note": "岗位搜索画像。本文件只描述「搜什么、去哪搜」，不含任何采集结果。脚本读取本文件生成搜索计划，不联网、不抓取。url_template 中的 {keyword} / {city} 由 scripts/search_urls.py 替换并做 URL 编码。",
+  "cities": [
+    {
+      "name": "上海",
+      "priority": "primary",
+      "note": "在校所在地，面试与到岗成本最低"
+    },
+    {
+      "name": "北京",
+      "priority": "secondary",
+      "note": "用友总部所在地，金融板块岗位集中"
+    },
+    {
+      "name": "郑州",
+      "priority": "fallback",
+      "note": "老家，作为回省就业的备选"
+    }
+  ],
+  "keyword_groups": [
+    {
+      "id": "fin_impl",
+      "label": "财务数智化实施",
+      "priority": 1,
+      "keywords": [
+        "财务实施顾问",
+        "ERP实施",
+        "财务系统实施",
+        "财务数字化",
+        "FICO顾问",
+        "财务共享"
+      ]
+    },
+    {
+      "id": "fin_analysis",
+      "label": "财务分析与经营分析",
+      "priority": 2,
+      "keywords": [
+        "财务分析",
+        "经营分析",
+        "预算分析",
+        "FP&A"
+      ]
+    },
+    {
+      "id": "accounting",
+      "label": "会计核算与税务",
+      "priority": 3,
+      "keywords": [
+        "会计",
+        "总账会计",
+        "成本会计",
+        "税务专员"
+      ]
+    },
+    {
+      "id": "data_bi",
+      "label": "数据分析与 BI",
+      "priority": 4,
+      "keywords": [
+        "数据分析",
+        "商业分析",
+        "BI分析"
+      ]
+    }
+  ],
+  "exclude_keywords": [
+    "审计",
+    "会计师事务所",
+    "税务师事务所",
+    "资产评估",
+    "销售",
+    "电销",
+    "电话销售",
+    "保险代理",
+    "客户经理",
+    "置业顾问",
+    "房产经纪",
+    "硬件开发",
+    "嵌入式",
+    "PCB",
+    "培训贷",
+    "储备干部"
+  ],
+  "exclude_note": "命中即剔除，不做二次判断。排除项来自个人偏好：不投传统审计/事务所、不投消费互联网 C 端与销售类、不投纯硬件开发。『销售』会误伤『销售财务』这类复合岗，若发现漏掉，改本列表而不是改脚本。",
+  "constraints": {
+    "graduate_year": 2027,
+    "job_types": [
+      "campus",
+      "internship"
+    ],
+    "weekly_days_min": 3,
+    "max_pages_per_query": 3
+  },
+  "platforms": [
+    {
+      "id": "shixiseng",
+      "name": "实习僧",
+      "kind": "campus_vertical",
+      "focus": "实习为主，应届友好",
+      "search_url": "https://www.shixiseng.com/interns?keyword={keyword}&city={city}",
+      "browse_url": "https://www.shixiseng.com/interns",
+      "keyword_param_works": true,
+      "fetch_mode": "webfetch_ok",
+      "params_verified": true,
+      "verified_at": "2026-10-29",
+      "note": "2026-10-29 实测：?keyword=财务&city=上海 返回真实列表页，WebFetch 可读出岗位卡片（公司/岗位/地点/薪资/日薪/标签）。"
+    },
+    {
+      "id": "yingjiesheng",
+      "name": "应届生求职网",
+      "kind": "campus_vertical",
+      "focus": "校招信息最全，含宣讲会与网申入口",
+      "search_url": "https://q.yingjiesheng.com/jobs/search?keyword={keyword}&city={city}",
+      "browse_url": "https://q.yingjiesheng.com/",
+      "keyword_param_works": true,
+      "fetch_mode": "needs_dom",
+      "params_verified": true,
+      "verified_at": "2026-10-29",
+      "note": "2026-10-29 实测：keyword 生效（页面标题为『财务招聘』），但列表由 JS 渲染，WebFetch 只能读到筛选条件。需走浏览器 DOM（B 路径）或由用户手动查看。"
+    },
+    {
+      "id": "nowcoder",
+      "name": "牛客校招",
+      "kind": "campus_vertical",
+      "focus": "27 届校招专场与企业直招，技术/产品岗偏多",
+      "search_url": "https://www.nowcoder.com/jobs/recommend/campus",
+      "browse_url": "https://www.nowcoder.com/jobs/recommend/campus",
+      "keyword_param_works": false,
+      "fetch_mode": "webfetch_ok",
+      "params_verified": true,
+      "verified_at": "2026-10-29",
+      "note": "2026-10-29 实测：?keyword= 不生效，返回通用推荐列表。因此本平台只提供列表入口，关键词过滤改在抓取后本地完成（L2 由 Agent 按 keyword_groups 筛）。列表含公司/岗位/薪资/城市/学历/详情链接，结构可读。"
+    }
+  ],
+  "search_policy": {
+    "layer_l1": "本地生成搜索链接，不联网。用户自行点开查看。",
+    "layer_l2": "按 references/job-search-policy.md 只读抓取列表页，抽取卡片字段写入 jobs/raw/。",
+    "layer_l3": "详情页字段补全后，走 normalize_jobs.py 的既有导入流程。",
+    "forbidden": [
+      "越过验证码、登录墙或反自动化提示",
+      "批量并发抓取或高频轮询",
+      "调用平台非公开接口（逆向 API）",
+      "点『立即沟通/投递』等写操作"
+    ],
+    "max_pages_per_query": 3,
+    "collect_delay_seconds_min": 2
+  }
+}

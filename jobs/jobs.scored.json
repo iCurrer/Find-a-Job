@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-29T13:18:53+08:00",
+  "generated_at": "2026-10-29T13:37:32+08:00",
   "generated_by": "scripts/score_jobs.py",
   "config_version": "1.0.0",
   "counts": {
@@ -137,7 +137,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:18:53+08:00"
+      "scored_at": "2026-10-29T13:37:32+08:00"
     },
     {
       "job_id": "job-3328bafe3a-6987",
@@ -268,7 +268,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:18:53+08:00"
+      "scored_at": "2026-10-29T13:37:32+08:00"
     },
     {
       "job_id": "job-6716c6394a-7bc1",
@@ -400,7 +400,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:18:53+08:00"
+      "scored_at": "2026-10-29T13:37:32+08:00"
     },
     {
       "job_id": "job-38ecf4e2a4-b341",
@@ -528,7 +528,7 @@
       ],
       "blocked": true,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:18:53+08:00"
+      "scored_at": "2026-10-29T13:37:32+08:00"
     },
     {
       "job_id": "job-4f81f6a9ed-bd01",
@@ -664,7 +664,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:18:53+08:00"
+      "scored_at": "2026-10-29T13:37:32+08:00"
     },
     {
       "job_id": "job-6d4169afd8-43eb",

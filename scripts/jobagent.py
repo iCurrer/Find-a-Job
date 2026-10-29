@@ -261,6 +261,36 @@ def cmd_run(root, profile, raw):
     emit(summary, 0 if summary["ok"] else 1)
 
 
+def cmd_search(root, platform, city, group, max_items):
+    args = []
+    if platform:
+        args += ["--platform"] + [str(item) for item in platform]
+    if city:
+        args += ["--city"] + [str(item) for item in city]
+    if group:
+        args += ["--group"] + [str(item) for item in group]
+    if max_items:
+        args += ["--max", str(max_items)]
+
+    step = _run_step(root, "search_urls.py", args)
+    payload = step["json"] or {}
+    ok = step["code"] == 0 and bool(payload.get("ok"))
+
+    result = {
+        "ok": ok,
+        "generated_at": now_iso(),
+        "generated_by": "scripts/jobagent.py search",
+        "counts": payload.get("counts"),
+        "skipped": payload.get("skipped"),
+        "outputs": payload.get("outputs"),
+        "next": "打开 outputs.markdown 逐条查看；中意的岗位交给步骤 1b 导入，或按 references/job-search-policy.md 只读抓取列表页。",
+    }
+    if not ok:
+        result["error"] = payload.get("error") or "生成搜索计划失败"
+        result["stderr"] = step["stderr"][:400]
+    emit(result, 0 if ok else (step["code"] or 1))
+
+
 def cmd_status(root):
     apps_path = os.path.join(root, "applications", "applications.json")
     scored_path = os.path.join(root, "jobs", "jobs.scored.json")
@@ -322,7 +352,7 @@ def cmd_status(root):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="JobAgent 统一入口：doctor 能力盘点 / run 全流程 / status 状态查看"
+        description="JobAgent 统一入口：doctor 能力盘点 / search 搜索计划 / run 全流程 / status 状态查看"
     )
     parser.add_argument("--root", help="项目根目录；缺省时按 JOBAGENT_ROOT → 向上查找 → 脚本上级目录解析")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -333,6 +363,12 @@ def main():
     p_run = sub.add_parser("run", help="依次执行 校验 → 标准化去重 → 评分")
     p_run.add_argument("--profile", help="档案路径，默认 profile/profile.json")
     p_run.add_argument("--raw", help="原始岗位路径，默认 jobs/raw/raw_jobs.json")
+
+    p_search = sub.add_parser("search", help="按搜索画像生成各平台搜索计划（L1，纯本地不联网）")
+    p_search.add_argument("--platform", nargs="+", help="只生成指定平台，如 shixiseng nowcoder")
+    p_search.add_argument("--city", nargs="+", help="只生成指定城市，如 上海 北京")
+    p_search.add_argument("--group", nargs="+", help="只生成指定关键词组，如 fin_impl")
+    p_search.add_argument("--max", type=int, default=0, help="最多生成多少条查询（0 表示不限）")
 
     sub.add_parser("status", help="查看投递状态与评分结果概览")
 
@@ -355,6 +391,8 @@ def main():
         cmd_doctor(root, args.write)
     elif args.command == "run":
         cmd_run(root, args.profile, args.raw)
+    elif args.command == "search":
+        cmd_search(root, args.platform, args.city, args.group, args.max)
     elif args.command == "status":
         cmd_status(root)
     else:  # pragma: no cover - argparse 已拦截

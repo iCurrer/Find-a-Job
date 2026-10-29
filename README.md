@@ -37,13 +37,15 @@ git clone https://github.com/iCurrer/Find-a-Job.git JobAgent
 cd JobAgent
 
 python scripts/jobagent.py doctor   # ① 能力与路径自检：应输出 ok=true，能力项 verified
-python scripts/jobagent.py run      # ② 跑通示例：校验 → 标准化去重 → 评分
-python tests/run_tests.py           # ③ 回归测试：应输出 18 通过 / 0 失败
+python scripts/jobagent.py search   # ② 生成搜索计划：关键词×城市×平台的链接，写 jobs/raw/search-plan-*.md
+python scripts/jobagent.py run      # ③ 跑通示例：校验 → 标准化去重 → 评分
+python tests/run_tests.py           # ④ 回归测试：应输出 20 通过 / 0 失败
 ```
 
-跑完打开两个文件看结果：
+跑完打开三个文件看结果：
 - `reports/scored-report.md` — 每个岗位的分数、分项理由、风险与缺失信息
 - `jobs/jobs.scored.json` — 同样内容的结构化版本
+- `jobs/raw/search-plan-*.md` — 可点开的搜索清单，按关键词分组
 
 想让每一步单独执行（例如只想重跑评分）：
 
@@ -114,7 +116,10 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor
 profile/profile.json ──► resumes/main-resume-v1.0.md   ← 步骤 0：先有简历，再谈岗位
      │ validate + 只用 confirmed 事实
      ▼
-jobs/raw/*.json                     ← 你手工录入或粘贴的岗位原文（只增不改）
+config/search.json ──► jobs/raw/search-plan-{date}.md  ← 步骤 1a：搜索计划（纯本地拼链接，不联网）
+     │ 只读抓取，通道顺序 C→B→A（references/job-search-policy.md）
+     ▼
+jobs/raw/*.json                     ← 步骤 1b：岗位原文（搜索所得或你手工录入，只增不改）
      │ normalize：字段标准化 + dedupe_key 去重
      ▼
 jobs/jobs.normalized.json
@@ -144,7 +149,33 @@ applications/applications.json ──► logs/applications.jsonl
 2. **硬性门槛独立阻断**：学历/证书/经验不满足 → `blocked=true`、状态直接 `不匹配`，高分不能掩盖；判不准就记 `missing_info`，不当成已满足。
 3. **提交证据**：改 `已提交` 必须带 `--evidence`，否则退出码 1；同一岗位已有提交记录时再投会被拦截。
 
-### 4.1 执行器：浏览器用宿主内置，手机走 adb，邮件用你自己的邮箱
+### 4.1 岗位搜索：三层，先本地后浏览器
+
+搜岗位不是一步，是三段，每段的失败方式不同，所以拆开：
+
+| 层 | 做什么 | 谁做 | 需要能力验证吗 |
+| --- | --- | --- | --- |
+| **L1 生成搜索计划** | 按 `config/search.json` 拼出各平台搜索链接 | `scripts/search_urls.py`（纯本地） | 不需要，随时可用 |
+| **L2 只读抓取列表** | 打开搜索页，读岗位卡片，抽成字段 | Agent（三条通道见下） | 按通道区分 |
+| **L3 详情导入** | 补全字段、落 `jobs/raw/`、走去重评分 | Agent + 既有脚本 | 不需要 |
+
+L2 有三条通道，**顺序固定 C → B → A**，能用代价最低的就别打扰你：
+
+| 通道 | 手段 | 前置条件 | 能拿到什么 |
+| --- | --- | --- | --- |
+| **C 文本只读** | `WebFetch` 抓页面文本 | **无**，不需要 `browser_exec` 验证 | 服务端渲染的列表（实习僧、牛客） |
+| **B 公开页只读** | `tabs_new` + DOM 读取 | `browser_exec=verified` | JS 渲染的列表（应届生求职网） |
+| **A 已登录标签页** | `tabs_claim` 接管你打开的标签 | 同上 + 你已登录 | 登录后才可见的内容 |
+
+C 路径是加搜索时补的：它不经过浏览器控制，所以**不受 `browser_exec` 状态限制**。这是当前唯一能立刻跑通的抓取通道，也是为什么搜索功能不用等你做浏览器实测就能用上一部分。
+
+**硬边界**（写在 `job-search-policy.md`，不是靠自觉）：单条查询最多 3 页、相邻抓取间隔 ≥2 秒、遇到验证码/登录墙/频率提示**立即停止而不换方案重试**、绝不调用平台非公开接口、搜索阶段不做任何写操作（不点「立即沟通」「投递」）。
+
+**一个刻意的设计**：搜索来的岗位 `source` 填 `campus_vertical_search`，**故意不加入** `trusted_sources`。聚合平台存在转载、过期、信息不全，信息可信度维度就该比官网直招低一档。所以同一岗位如果官网也发了，**以官网那条为主记录**。
+
+平台参数会变（今年几家都改过），所以模板放在 `config/search.json` 里并带 `verified_at` 字段，失效时改配置，不用动脚本。
+
+### 4.2 执行器：浏览器用宿主内置，手机走 adb，邮件用你自己的邮箱
 
 第八步「执行」是整个流程里唯一碰真实世界的地方，因此单独定规范。三套规则都已在仓库里：
 
@@ -182,10 +213,11 @@ JobAgent/
 ├── docs/                      # 设计文档（开发方案 V1.0）
 ├── skills/job-agent/          # ★ 可装进 WorkBuddy 的 Skill
 │   ├── SKILL.md               #   装载与根解析、八步主流程、工具边界、错误处理
-│   └── references/            #   档案/评分/简历/投递/安全/浏览器/adb/邮件 八份规则
+│   └── references/            #   档案/评分/简历/投递/安全/搜索/浏览器/adb/邮件 九份规则
 ├── config/
-│   ├── settings.json          #   路径、运行模式、能力矩阵、来源白名单
-│   └── scoring.json           #   六维权重、阈值、版本与 changelog
+│   ├── settings.json          #   路径、运行模式、能力矩阵、执行器策略、来源白名单
+│   ├── scoring.json           #   六维权重、阈值、版本与 changelog
+│   └── search.json            #   搜索城市、关键词组、排除词、平台 URL 模板
 ├── profile/
 │   ├── profile.template.json  #   空白模板
 │   └── profile.json           #   示例档案（虚构占位，可替换）
@@ -200,14 +232,15 @@ JobAgent/
 ├── reports/                   # 校验 / 去重 / 评分 / 运行摘要
 ├── logs/                      # 审计日志（已被 .gitignore 排除）
 ├── scripts/
-│   ├── jobagent.py            # ★ 统一入口：doctor / run / status
+│   ├── jobagent.py            # ★ 统一入口：doctor / search / run / status
 │   ├── common.py              #   公共工具（含项目根解析 find_root）
 │   ├── validate_profile.py    #   档案校验
+│   ├── search_urls.py         #   岗位搜索计划生成（L1，纯本地不联网）
 │   ├── normalize_jobs.py      #   岗位标准化 + 去重
 │   ├── score_jobs.py          #   六维规则评分 + 硬性阻断
 │   └── update_application.py  #   投递状态机（唯一写入口）
 └── tests/
-    ├── run_tests.py           # T01–T18 回归测试
+    ├── run_tests.py           # T01–T20 回归测试
     ├── sample_profile.json    # 测试固定档案
     ├── sample_jobs.json       # 测试固定岗位
     └── test_cases.md          # 用例说明
@@ -223,11 +256,14 @@ JobAgent/
 2. **先出基础简历**（步骤 0）：档案校验通过后，让 WorkBuddy「按 skills/job-agent 的 resume-policy 生成基础简历」，
    产出 `resumes/main-resume-v1.0.md` + 版本说明。它会同时告诉你三个缺口和先补哪个收益最高。
    档案事实不足时**不会**硬凑一份空简历，只给你缺口清单。
-3. **岗位**：按 `jobs/raw/raw_jobs.json` 的字段格式追加，建议一个来源一个文件。
+3. **搜索条件**：改 `config/search.json` 的城市、关键词组、排除词。`cities` 按优先级排列，
+   `exclude_keywords` 是硬性排除项（命中即剔除，脚本只做子串匹配，不做语义判断）。
+   排除词写错会误伤——例如「销售」会连「销售财务」一起排除，发现漏掉就改列表，不要改脚本。
+4. **岗位**：让 Skill 按步骤 1 搜索并导入，或按 `jobs/raw/raw_jobs.json` 的字段格式自行录入。
    字段允许缺失——脚本会写入 `missing_info`，不会替你猜。
-4. **权重**：改 `config/scoring.json` 的六维权重（合计必须为 1.0），并追加 `version` 与 `changelog`。
-5. 重跑 `python scripts/jobagent.py run`。
-6. **要发邮件的话**：在对话输入框左下角的连接器菜单里确认 **QQ 邮箱**（`qq-mail`）已连接。
+5. **权重**：改 `config/scoring.json` 的六维权重（合计必须为 1.0），并追加 `version` 与 `changelog`。
+6. 重跑 `python scripts/jobagent.py search` 与 `run`。
+7. **要发邮件的话**：在对话输入框左下角的连接器菜单里确认 **QQ 邮箱**（`qq-mail`）已连接。
    连上后 Skill 才能用你自己的邮箱发信；没连上时它只给草稿，不会替你发，也不会改用智能体邮箱代发。
 
 权重怎么调才有意义：先跑 10–20 条真实岗位，把「分高但不想投」和「分低但想投」的挑出来，
@@ -246,10 +282,19 @@ A：不准，而且本来就不该准。它是**规则启发式**：技能匹配
 反馈校准。它的价值是「可解释、可复现、不吹牛」，不是「预测录取概率」。
 
 **Q：能用在真的招聘网站上吗？**
-A：脚本不联网、不抓页面。岗位原文由你粘贴或手工录入；浏览器能力要等 P4 实测通过后才谈，且届时用的是 WorkBuddy 内置浏览器控制，不会给你装 Selenium。
+A：分两层说。**生成搜索链接**完全不联网，纯本地拼 URL；**抓取岗位列表**由 Agent 只读完成，走 C→B→A 通道，只在列表页读，不点投递、不碰登录、遇验证码即停。脚本本身仍然一行网络代码都没有（T12 静态检查）。
+
+**Q：能自动帮我搜岗位吗？**
+A：能搜，但「搜到」不等于「投出去」。`jobagent.py search` 给你一份可点开的搜索清单（关键词 × 城市 × 平台）；
+L2 才尝试自动读列表并抽字段——实习僧和牛客可以直接文本读取，应届生求职网需要浏览器 DOM 渲染。
+筛选、判断、投递始终由你决定。
+
+**Q：搜索会不会把「搜到很多」当成「匹配很多」？**
+A：不会。搜索只负责把岗位**带进来**（写 `jobs/raw/`），判断好坏由步骤 4 的评分做，两件事分开。
 
 **Q：数据会不会被上传？**
 A：脚本没有任何网络库调用（`tests/run_tests.py` T12 静态检查这一点）；日志与 `.bak` 都在 `.gitignore` 里。
+搜索时读取的是公开页面，不会把你的档案或投递记录发给任何平台。
 
 **Q：能只跑其中一步吗？**
 A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起来并汇总退出码。
@@ -262,8 +307,8 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 | --- | --- | --- |
 | P0 环境盘点 | ✅ 已可自动化 | `jobagent.py doctor` 实测并写出能力矩阵（T13 覆盖） |
 | P1 MVP 数据层 | ✅ 已完成 | 档案 / 岗位 / 投递模板 + `schema_version` + 校验脚本 |
-| P2 Skill v0.3 | ✅ 已完成 | `SKILL.md` 十章 + 7 份 references，含装载与根解析、两套执行器规范 |
-| P3 质量测试 | ✅ 已完成 | T01–T18，18/18 通过 |
+| P2 Skill v0.5 | ✅ 已完成 | `SKILL.md` 十章 + 9 份 references，含装载与根解析、搜索策略、两套执行器规范 |
+| P3 质量测试 | ✅ 已完成 | T01–T20，20/20 通过 |
 | P4 浏览器辅助 | 📋 规范已定，待实测 | [`browser-policy.md`](skills/job-agent/references/browser-policy.md) 就绪；需先通过「A 路径只读」实测，再验证填表，最后才是提交前确认 |
 | P5 手机接入 | 📋 规范已定，待设备 | [`android-adb-policy.md`](skills/job-agent/references/android-adb-policy.md) 就绪；本机尚无 adb，接入设备后先做只读闭环 |
 | P6 常驻与扩展 | ⏳ 未开始 | 定时运行 / 服务器 / 仪表盘 |
@@ -276,6 +321,11 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 - 「已撤回」状态未纳入状态机（MVP 范围外）。
 - 时间固定 `+08:00`；跨时区需改 `scripts/common.py` 的 `CST`。
 - 根解析的兜底是「`scripts/` 上级目录」，同机多份副本请用 `JOBAGENT_ROOT` 显式指定。
+- **搜索平台参数会变**：三家校招站今年都改过 URL 格式。模板放在 `config/search.json` 并带 `verified_at`，
+  失效时改配置不改脚本；脚本不联网，因此无法自动发现失效。
+- **抓取能力取决于平台渲染方式**：服务端渲染的能直接读，纯前端渲染的需要浏览器 DOM。不是「有搜索功能就能搜所有平台」。
+- **搜索来源的可信度天然低一档**：`campus_vertical_search` 刻意不在 `trusted_sources` 里，所以同一岗位
+  官网直招那条的评分会更高。这不是 bug，是刻意让「官网可核实」比「聚合站转发」优先。
 
 ## 10. 安全边界
 
@@ -290,7 +340,7 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 
 | 有 | 说明 |
 | --- | --- |
-| `scripts/` 五个脚本 + `tests/` 18 项回归 | 纯标准库，clone 后**无需安装依赖** |
+| `scripts/` 六个脚本 + `tests/` 20 项回归 | 纯标准库，clone 后**无需安装依赖** |
 | `skills/job-agent/` | 可直接复制进 WorkBuddy 的 Skill 目录 |
 | `docs/` 设计文档 | 《开发方案 V1.0》，13 章设计与分阶段路线 |
 | 示例数据与示例报告 | 全部虚构占位（`示例*` / `example-*` 域名），可安全浏览 |

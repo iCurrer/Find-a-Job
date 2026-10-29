@@ -36,6 +36,8 @@ python tests/run_tests.py
 | T16 | 执行器配置与证据能否被误覆盖 | 读 `settings.json` 校验 `executor_policy`；`git check-ignore` 验证截图目录；备份后跑 `doctor --write` 比对证据 | `runtime=workbuddy_builtin`、登录不由 Agent 完成、单岗位提交上限 1、禁止依赖清单齐全；手机端 `allow_send_like_actions=false`；`logs/screens/` 被忽略；`doctor --write` 后已登记证据与 `executor_policy` 均未被冲掉 | PASS |
 | T17 | 邮件能不能直接发出去、会不会发错 | 读 `references/email-policy.md` 检查关键约束 | 必须指定 `qq-mail`、明确不用 `agent-mail` 代发、未连接时提示用户打开、要求展示全文与一次明确确认、禁批量、同岗位跟进仅一次、禁止把密码写入对话、收费类招聘不发 | PASS |
 | T18 | 简历是不是在流程最前面生成 | 读 `resume-policy.md` 与 `SKILL.md` | 主流程声明为**九步**且「建立基础简历 → 导入岗位」顺序正确；有「步骤 0：建立基础简历」章节；禁止用占位符堆出空简历；前置条件不足输出缺口清单；定制版必须从基础简历派生；步骤 5 引用 `email-policy.md` 衔接邮件通道 | PASS |
+| T19 | 搜索画像与通道约束是否真的写死 | 读 `config/search.json`、`job-search-policy.md`、`browser-policy.md` | 平台必填字段齐全、`search_url` 均为 https、`fetch_mode` 取值合法、宣称支持关键词就必须含 `{keyword}`、标为已核对就必须写 `verified_at`；排除词覆盖审计/销售/硬件；通道顺序固定 **C → B → A**；写明翻页上限、遇验证码立即停止、禁调非公开接口、禁能力不足时编造岗位；`browser-policy` 已补 C 路径且登录类操作编号为 X（禁止） | PASS |
+| T20 | 搜索计划生成与排除词是否生效 | 跑 `search_urls.py --stdout` 与限定生成，再构造被排除的临时配置 | 计划含可点链接并声明不含采集结果；每条 URL 均 https、无空格、无未编码中文；城市过滤生效；排除词在**生成前**生效（整组命中排除词时以退出码 1 结束并列出原因） | PASS |
 
 ## 说明与边界
 
@@ -45,4 +47,5 @@ python tests/run_tests.py
 4. **T12 是静态检查**：脚本不引入网络库即可证明不会主动外发；用户环境中的 WorkBuddy 浏览器能力另需 P0 验证。
 5. **T13 的边界**：doctor 能证明「脚本跑得动、文件读得动」，**不能**证明「浏览器可控」；后者只能由用户实测后确认，脚本刻意不给出 `verified`。
 6. **T14 的边界**：根解析的兜底是「`scripts/` 的上级目录」，若同一台机器存在多份 JobAgent 副本，请用 `JOBAGENT_ROOT` 显式指定，避免歧义。
-7. 回归测试是**发布门槛**的一部分：修改脚本、评分权重、状态机后必须重新运行并保持 18/18。
+7. **T20 只验证链接生成，不验证平台可达**：脚本不联网，因此无法断言某个平台今天是否改版。平台参数失效时改 `config/search.json` 的 `search_url` 与 `verified_at`，不改脚本。
+8. 回归测试是**发布门槛**的一部分：修改脚本、评分权重、状态机、搜索画像后必须重新运行并保持 20/20。

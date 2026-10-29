@@ -1,7 +1,7 @@
 ---
 name: job-agent
-description: 个人求职流程编排 Skill。以本地个人档案为唯一事实来源，完成岗位导入、标准化去重、可解释的六维评分、简历/求职信/网申答案草稿与投递状态记录；任何外部写入（投递、发邮件、上传资料）前必须由用户显式确认。当用户提到「求职、找工作、岗位、投递、岗位评估、岗位打分、优先级排序、简历定制、求职信、网申、面试跟进、求职日报、求职周报、Offer 比较」，或提供招聘链接/岗位截图/岗位 JSON 要求分析或导入，或要求查询、更新投递记录时使用。
-version: 0.4.0
+description: 个人求职流程编排 Skill。以本地个人档案为唯一事实来源，完成岗位搜索与导入、标准化去重、可解释的六维评分、简历/求职信/网申答案草稿与投递状态记录；任何外部写入（投递、发邮件、上传资料）前必须由用户显式确认。当用户提到「求职、找工作、找岗位、搜岗位、有什么新机会、岗位、投递、岗位评估、岗位打分、优先级排序、简历定制、求职信、网申、面试跟进、求职日报、求职周报、Offer 比较」，或提供招聘链接/岗位截图/岗位 JSON 要求分析或导入，或要求查询、更新投递记录时使用。
+version: 0.5.0
 ---
 
 # job-agent（个人求职流程 Skill）
@@ -155,6 +155,7 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写
 | `references/resume-policy.md` | 生成、修改、导出一份对外的简历/求职信/网申答案之前 |
 | `references/application-workflow.md` | 更新投递状态、登记提交证据、重试或判断重复申请之前 |
 | `references/security-policy.md` | 任何涉及敏感信息、外部写入、日志与平台边界的操作之前 |
+| `references/job-search-policy.md` | **任何岗位搜索之前**：生成搜索计划、抓取列表页、判断用哪条通道（C/B/A）、失败降级 |
 | `references/browser-policy.md` | **任何浏览器操作之前**（P4）：标签页接管、只读抓取、填写、提交确认、截图落盘 |
 | `references/android-adb-policy.md` | **任何手机操作之前**（P5）：设备连接、只读探测、输入与点击、隐私落盘 |
 | `references/email-policy.md` | **任何对外发信之前**：投递邮件、跟进、致谢，含连接器检查与发送确认 |
@@ -200,14 +201,25 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写
 - 完成后必须回答三个问题：这份简历能投什么方向（2–3 个）／最大三个缺口／先补哪个收益最高。
 - 已有 `main-resume-v*` 时不重复生成：事实未变则复用，事实有变则按版本规则升级 `major` 并保留旧版。
 
-### 步骤 1：导入岗位
+### 步骤 1：发现与导入岗位
 
-- 输入：用户提供的招聘链接/截图/文本，或 `jobs/raw/` 下用户手工整理的原始 JSON。
+**1a 发现（主动搜索，推荐但非必需）** — 详细规则见 `references/job-search-policy.md`
+
+- 用户提出「找岗位 / 搜一下 / 有什么新机会」时先做这一步；只给具体岗位让你评分的，跳到 1b。
+- L1：跑 `python scripts/search_urls.py` 生成 `jobs/raw/search-plan-{date}.md`（关键词 × 城市 × 平台的搜索链接，纯本地生成，不联网）。
+- L2：按 `job-search-policy.md` 只读抓取列表页。通道顺序固定 **C（`WebFetch` 文本只读）→ B（公开页 `tabs_new`）→ A（用户已登录标签页）**，能用 C 就不打扰用户。
+- 硬边界：单查询最多 3 页、相邻抓取间隔 ≥2 秒、**遇验证码/登录墙/频率提示立即停止**、不调平台非公开接口、不做任何写操作。
+- 抓取结果落 `jobs/raw/{platform_id}-{date}.json`，`source` 固定填 `campus_vertical_search`。
+- **能力不足时降级**：C 拿不到（需 JS 渲染）且 `browser_exec` 未 verified → 只交 L1 搜索计划，明说「这些链接要你自己点开」，**不得假装已搜、更不得凭常识编岗位**。
+
+**1b 导入（用户提供具体岗位时）**
+
+- 输入：用户提供的招聘链接/截图/文本，或 `jobs/raw/` 下手工整理的原始 JSON。
 - 操作：将岗位原文、来源、采集时间写入 `jobs/raw/`（**只增不改**，一个来源一个文件或按采集批次命名，不改动已有文件）。
 - 必须保留：`source`、`source_url`、`company`、`title`、`location`、`collected_at`、`raw_text`（或 `requirements`/`responsibilities`）。
 - 无法验证的信息标记为未知（`missing_info`），不猜测补全。
 - 岗位状态初始为 `待评估`。
-- 若浏览器能力未接入：请用户粘贴岗位原文或提供链接由用户自行保存，本 Skill 不抓取。
+- 搜索来的岗位若在官网也找到，**以官网那条为主记录**（可信度更高），交由用户在去重报告中选择。
 
 ### 步骤 2：标准化
 
@@ -506,6 +518,7 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
+| 0.5.0 | 2026-10-29 | 岗位搜索三层落地：新增 `references/job-search-policy.md`（L1 生成计划 / L2 只读抓取 / L3 详情导入；通道顺序 C→B→A；翻页上限、间隔、遇验证码即停、禁调非公开接口）；`browser-policy.md` 补 **C 路径（`WebFetch` 文本只读）**，原「C（禁止）」改为 X；新增 `config/search.json`（城市/关键词组/排除词/平台模板，含各平台实测状态）与 `scripts/search_urls.py`（纯本地生成搜索计划）；入口增 `jobagent.py search`；步骤 1 拆为 1a 发现 / 1b 导入；`settings.json` 增 `executor_policy.search` 与 `trusted_sources_note`；新增 T19/T20，回归 20/20 |
 | 0.1.0 | 2026-10-29 | 首版：覆盖方案 4.2 的 8 个章节，对齐构建契约的字段、脚本与状态机 |
 | 0.4.0 | 2026-10-29 | 简历前置 + 邮件通道：主流程八步改**九步**，新增「步骤 0：建立基础简历」（前置条件不足时输出缺口清单，禁止用占位符堆空简历；定制版必须从基础简历派生）；`resume-policy.md` 增第 0 节（结构模板、分节取舍、与定制版关系、完成必答三问）；新增 `references/email-policy.md`（用户本人 QQ 邮箱连接器 `qq-mail`，禁 `agent-mail` 代发；全文展示 + 一次明确确认；禁批量；同岗位跟进仅一次；收费类招聘不发）；`settings.json` 增 `email_exec` 与 `executor_policy.email`；新增 T17/T18，回归 18/18 |
 | 0.3.0 | 2026-10-29 | 执行器规范落地：新增 `references/browser-policy.md`（浏览器固定用 WorkBuddy 内置能力、禁止引入 Selenium/Playwright、复用用户已登录标签页 `tabs_claim`、DOM 优先于坐标、提交单次上限、截图落 `logs/screens`）与 `references/android-adb-policy.md`（USB 单设备、uiautomator 优先、永不代点发送类、`input text` 不支持中文、禁 `adb tcpip`）；5.2 增执行器选择表与手机端额外硬约束；步骤 7 增执行器分工表；`config/settings.json` 新增 `executor_policy`；`doctor --write` 改为保留已登记的外部能力证据；新增 T15/T16，回归 16/16 |
