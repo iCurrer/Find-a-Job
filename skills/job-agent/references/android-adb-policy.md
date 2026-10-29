@@ -1,167 +1,170 @@
 # 手机执行器规范（android-adb-policy）
 
-> 适用：P5 阶段及之后，需要通过 Android 设备读取或操作招聘 App 的动作。
-> 定版：2026-10-29 ｜ 对应 `config/settings.json` 的 `mobile_exec` 能力项。
->
-> **当前状态：`unverified`。** 2026-10-29 实测本机：`adb` 不在 PATH，常见安装位置
-> （`%LOCALAPPDATA%\Android\Sdk\platform-tools`、`C:\Android`、`D:\Android`）均不存在，也未安装 `scrcpy`。
-> 因此本文件是**规范先行**，所有条款在设备接入并完成第 8 节验证前一律不生效。
+> 适用：P5 阶段及之后，用 `adb` 真实操控 Android 招聘 App（Boss 直聘、猎聘、前程无忧、智联、实习僧等）。
+> 定版：2026-10-29（v0.6.0 起改为「可控、可审计的操控」，不再只做只读引导）
+> 对应实现：`scripts/adb_ctl.py`；对应配置：`config/settings.json` 的 `executor_policy.mobile` 与 `verified_capabilities.mobile_exec`。
 
-## 0. 为什么手机端要做，以及为什么规则更严
+> **当前状态：`unverified`。** 2026-10-29 实测本机：`adb` 不在 `PATH`，
+> `%LOCALAPPDATA%\Android\Sdk\platform-tools`、`C:\Android`、`D:\Android` 均不存在，也无 `scrcpy`。
+> 脚本逻辑已用假设备桩通过回归（T26），但**真机链路尚未验证**。装好 platform-tools 并跑通第 8 节的闭环后才置 `verified`。
 
-国内招聘（Boss 直聘、猎聘、前程无忧、实习僧等）大量功能只在 App 内提供，网页端残缺。所以手机执行器有实际价值。
+## 0. 能力边界：能做什么、不能做什么
 
-但手机端的风险**高于**浏览器端，原因是：
-
-| 浏览器端 | 手机 App 端 |
+| 能做（脚本已实现） | 不能做（不提供入口） |
 | --- | --- |
-| 误点提交，通常可在平台内撤回或修正 | 给 HR **发出消息不可撤回**，直接影响求职形象 |
-| 页面可截图、可读 DOM 复核 | UI 树不稳，App 版本一更新选择器全失效 |
-| 可随时关标签页 | 可能误触拨号、支付、授权、订阅 |
-| 登录态在浏览器，可弃用 | 登录态绑定设备，误操作波及真实账号 |
+| 读当前界面元素（文本 / resource-id / 坐标 / 可点击性） | 提权（`adb root`、`remount`）、改系统设置 |
+| 按文本或 id 点击、滑动、返回、启动 App | 无线调试（`adb tcpip`）、局域网连接 |
+| 连续下滑浏览并记录每屏文本（`browse`） | `pm clear` 清数据、`backup`/`restore` |
+| 截图（三步法）、等待元素出现 | 代填密码 / 验证码 / 身份证 |
+| 输入 **ASCII** 文本 | 输入中文（硬限制，见 4.1） |
 
-所以手机端的总原则比浏览器端更保守：**只读 + 填写，绝不发送。**
+一句话：**手机端可以做「浏览、检索、定位、记录」，发送类动作必须逐条人工确认。**
 
-## 1. 总原则（四条，冲突时按序）
+## 1. 总原则（冲突时按序执行）
 
-1. **只读优先于写入，填写优先于提交。** 手机端**禁止**执行任何「发送/投递/打招呼/拨号/支付」类动作，一律由用户本人点。这是与浏览器端的最大差别（浏览器端在用户单独授权后允许点一次提交，手机端不允许）。
-2. **定位优先于坐标。** 用 `uiautomator dump` 拿 UI 树定位元素，坐标点击仅在 UI 树取不到时使用，且必须每次重新截图。
-3. **USB 单设备，用完断开。** 禁止无线调试、禁止 `adb tcpip`。
-4. **截图与 UI 树是隐私载体。** 手机截图含手机号、真实姓名、头像、聊天记录，落盘规则见第 6 节。
+1. **先读后写，先定位后点击。** 每次点击前必须有一次新鲜的 `dump`；不看界面就点 = 盲点，禁止。
+2. **发送类逐条确认。** 「打招呼 / 立即沟通 / 投递 / 发送」属于 L3，默认不点；用户对**这一条**明确同意后才点**一次**，且每岗位上限 1 次。批量群发永久禁止。
+3. **USB 单设备。** 多设备必须显式 `--serial`，禁止无线调试。
+4. **频率像人。** 两次动作间隔 ≥ 2.5 秒，单次会话点击 ≤ 10 次；触发风控提示立即停。
+5. **截图与 UI 树是隐私载体。** 只落 `logs/screens/`，且设备端副本 pull 后立即删。
 
-## 2. 连接与会话
+## 2. 动作分级
 
-| 动作 | 命令 | 规则 |
-| --- | --- | --- |
-| 列出设备 | `adb devices -l` | 每次会话第一条命令。必须恰好 **1 台** `device` 状态；出现 `unauthorized` / `offline` 先让用户处理授权弹窗，不得反复 `adb kill-server` |
-| 指定设备 | `adb -s <serial> <cmd>` | 设备数 > 1 时**强制**带 `-s`，禁止省略（否则命令随机落在一台设备上，可能操作错手机） |
-| 版本确认 | `adb version`、`adb shell getprop ro.build.version.release` | 记录到报告，Android 版本影响后续命令可用性 |
-| 收尾 | `adb kill-server`（可选） | 会话结束建议执行；同时提醒用户关闭 USB 调试 |
+| 级别 | 动作 | 命令 | 确认要求 |
+| --- | --- | --- | --- |
+| **L0 读** | 设备状态、包名、UI 树、截图 | `status` `devices` `packages` `dump` `find` `screenshot` | 无需逐次确认（受第 6 节隐私约束） |
+| **L1 导航** | 启动 App、返回、回桌面、唤醒、滑动 | `launch` `key` `swipe` | 说明去向即可，无需逐条批准 |
+| **L2 交互** | 点岗位卡片进详情、切换 tab、翻页、收藏 | `tap --text/--id` | 说明「点哪个元素、会发生什么」，可批量说明同一动作 |
+| **L3 发送** | 打招呼 / 立即沟通 / 投递 / 发消息 | `tap --text "立即沟通"` | **逐条确认**，每条一次，每岗位上限 1 次 |
+| **X 禁止** | 提权、清数据、改系统设置、支付、授权弹窗「始终允许」、拨号 | — | 脚本不提供入口，直接拒绝 |
 
-**禁止**
+## 3. 标准操作循环（刷 App 的骨架）
 
-- `adb tcpip <port>` / `adb connect <ip>`：把 5555 调试端口暴露到局域网，同网段任何设备可完全控制手机。
-- `adb root`、`adb remount`：提权后误操作可损坏系统分区。
-- `adb install` / `adb uninstall` / `adb push` 到 `/system`、`/data/local/tmp` 之外的系统路径。
-- `adb backup`：可导出应用私有数据，且 Android 12+ 已基本失效；一律不用。
-- 未获用户明确许可即连接任何设备。
-
-## 3. 只读探测层（L0，安全）
-
-这一层不需要逐次确认（但仍受第 6 节隐私约束）：
-
-| 目的 | 命令 |
-| --- | --- |
-| 当前前台页面 | `adb shell dumpsys window \| grep -E "mCurrentFocus\|mFocusedApp"` |
-| 当前 Activity（备用） | `adb shell dumpsys activity activities \| grep -E "ResumedActivity\|topResumedActivity"` |
-| 已安装招聘类 App | `adb shell pm list packages \| grep -iE "zhipin\|liepin\|51job\|shixiseng\|kanzhun\|maimai"` |
-| 屏幕分辨率与密度 | `adb shell wm size`、`adb shell wm density` |
-| 截图 | 见下方「截图正确写法」 |
-| UI 树 | `adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml <本地路径>` |
-| 直接输出 UI 树 | `adb exec-out uiautomator dump /dev/tty`（部分 ROM 支持，失败则用上一条） |
-
-**截图正确写法（Windows 上的真实坑）**
-
-```bash
-# 推荐：先存设备端再 pull，二进制不经 shell 重定向，绝不会损坏
-adb shell screencap -p /sdcard/shot.png && adb pull /sdcard/shot.png logs/screens/xxx.png && adb shell rm /sdcard/shot.png
-
-# 在 Git Bash 下可用，但 PowerShell 下会把二进制当文本处理导致 PNG 损坏
-adb exec-out screencap -p > logs/screens/xxx.png
+```
+status / devices          # 1. 确认恰好 1 台 device
+launch --package ...      # 2. 启动 App（已登录状态，不由 Agent 登录）
+dump                      # 3. 读当前界面
+find --text "财务实施"     # 4. 定位目标元素（拿坐标）
+tap --text "财务实施"      # 5. 点击（点击后必须重新 dump 复核）
+swipe up                  # 6. 翻页（或 browse 自动翻页记录）
+screenshot                # 7. 需要留证时截图
 ```
 
-> 结论：**统一用「设备端落盘 + pull + 删设备端文件」三步**，不用管道重定向。这样在 PowerShell / cmd / Git Bash 下行为一致。
+**每次都复核**：点击后必须重新 `dump` 确认页面确实变了。没变 → 记 `需人工介入`，**不重试第 2 次**。
 
-## 4. 写入层（L1/L2，逐项确认）
+### 3.1 Boss 直聘参考流程
 
-| 层级 | 动作 | 命令 | 确认要求 |
-| --- | --- | --- | --- |
-| L1 导航 | 回到桌面 / 返回 / 启动指定 App | `input keyevent KEYCODE_HOME`(3)、`KEYCODE_BACK`(4)、`am start -n <pkg>/<activity>` 或 `monkey -p <pkg> -c android.intent.category.LAUNCHER 1` | 说明要去哪个 App |
-| L2 滚动 | 上滑/下滑 | `input swipe <x1> <y1> <x2> <y2> <duration_ms>` | 说明目的是找到某元素 |
-| L2 点击 | 点击已定位元素 | `input tap <x> <y>` | 说明点的是哪个元素、点了会发生什么 |
-| L2 输入 | 填文本 | `input text <ASCII>` | 说明填哪个字段、值来自档案哪条 `confirmed` 事实 |
+| 步骤 | 命令 | 说明 |
+| --- | --- | --- |
+| 确认包名 | `packages --search boss` | 包名以实测为准，不要硬编码猜测 |
+| 启动 | `launch --package <实测包名>` | 需用户先在手机上登录 |
+| 搜索岗位 | 见 4.1 | **中文无法用 `input text` 输入**，默认由用户手动输入关键词 |
+| 浏览列表 | `browse --rounds 8 --interval 2.5 --out jobs/raw/boss-browse.jsonl` | 只下滑 + 记录文本，不点任何按钮 |
+| 进详情 | `tap --text "<岗位名>"` | L2，需说明 |
+| 打招呼 | `tap --text "立即沟通"` | **L3，逐条确认** |
 
-**屏幕唤醒**：优先 `input keyevent KEYCODE_WAKEUP`(224)，**不要**用 `KEYCODE_POWER`(26)——后者是**切换**状态，屏幕本来就亮时会把它锁掉。
+### 3.2 检索中文关键词的三种做法
 
-### 4.1 中文输入的硬坑（必读）
-
-`adb shell input text` **只支持 ASCII 可打印字符**，直接传中文会失败（静默忽略或报错）。同时空格需转义为 `%s`，`&`、`(`、`)` 等需 URL 编码。这是硬限制，不是配置问题。
-
-三种可行方案，按推荐顺序：
+`adb shell input text` 只支持 ASCII，这是硬限制。按推荐顺序：
 
 | 方案 | 做法 | 代价 |
 | --- | --- | --- |
-| ① 交给人 | 需要填中文时，滚动到该字段、聚焦，让用户自己输入 | 零风险，最稳，但打断流程 |
-| ② ADBKeyBoard 输入法 | 安装 ADBKeyBoard（开源输入法，监听广播接收 UTF-8 文本），`adb shell am broadcast -a ADB_INPUT_TEXT --es msg '中文'` | 需装第三方输入法并切换默认输入法，属于**修改设备配置**，必须用户明确许可 |
-| ③ 剪贴板 | `adb shell cmd clipboard set-text`（仅部分 Android 版本支持）配合长按粘贴 | 版本兼容性差，不稳定 |
+| ① 用户手动输入（默认） | Agent 打开搜索框，把手机交还用户输入 | 零风险，最稳 |
+| ② ASCII 关键词 | 搜 `Boss` 里可用的英文/拼音词，或直接用平台筛选器（城市/职能） | 覆盖不全 |
+| ③ ADBKeyBoard | 装第三方输入法并切换默认输入法，广播 UTF-8 文本 | **改系统输入法，必须单独授权**，用完切回 |
 
-> **默认采用方案 ①。** 方案 ② 涉及安装 App 与改系统输入法，按项目铁律必须用户逐次授权，且用完要切回原输入法。
-> 本条的可行性在设备接入前**未实测**，标记为待验证项。
+> 方案 ③ 属「修改设备配置」，按项目铁律需用户逐次许可；未实测。
 
-### 4.2 禁止的写入动作
+## 4. 命令与实现细节
 
-| 禁止 | 原因 |
-| --- | --- |
-| 点击任何「发送」「投递」「打招呼」「立即沟通」「确认」类按钮 | 消息不可撤回，误触直接损害求职形象。此类动作**永远由用户本人完成** |
-| `input text` 填入密码、验证码、身份证号 | 凭据不经本 Skill 之手（`security-policy.md`） |
-| `input keyevent` 模拟支付/确认键序列 | 可能造成真实扣款 |
-| `pm clear <pkg>` | 清空 App 数据，退出登录并丢失本地记录 |
-| `settings put` 改任何系统设置 | 影响用户设备全局行为 |
-| `input tap` 到拨号键、订阅键、授权弹窗的「始终允许」 | 副作用不可控 |
-| 连续盲点（点击后不截图不复核就点下一个） | 极易误触 |
+### 4.1 中文输入硬限制
+
+```bash
+adb shell input text "财务"     # 失败或乱码：只支持 ASCII 可打印字符
+adb shell input text "hello%sworld"   # 空格要写成 %s
+```
+
+`adb_ctl.py text` 会在检测到非 ASCII 时**直接拒绝并返回三个可选方案**，不会静默失败。
+
+### 4.2 截图必须三步走
+
+```bash
+adb shell screencap -p /sdcard/jobagent_shot.png
+adb pull /sdcard/jobagent_shot.png logs/screens/xxx.png
+adb shell rm -f /sdcard/jobagent_shot.png
+```
+
+原因：`adb exec-out screencap -p > x.png` 在 PowerShell 下会把二进制当文本处理，PNG 直接损坏。
+`adb_ctl.py screenshot` 已固定这三步。
+
+### 4.3 按键要点
+
+| 目的 | 用 | 不要用 |
+| --- | --- | --- |
+| 唤醒屏幕 | `key wake`（KEYCODE_WAKEUP 224） | `KEYCODE_POWER`(26) 是**切换**态，屏幕亮着会被锁掉 |
+| 返回 | `key back`(4) | — |
+| 回桌面 | `key home`(3) | — |
+
+### 4.4 元素定位优先级
+
+先用 `uiautomator dump` 把当前界面导成 UI 树（`adb_ctl.py dump`），再按下列优先级匹配：
+
+1. `resource-id`（最稳，但 App 改版会变）
+2. `text` 精确匹配
+3. `text` 包含匹配（注意「立即沟通」可能同时出现在多个卡片）
+4. `content-desc`（无障碍描述）
+5. 坐标 `--xy`（**最后手段**，点击前必须重新截图、点击后必须复核）
 
 ## 5. 必须立即停止的情形
 
-| 停止条件 | 判定 |
+| 停止条件 | 判定依据 |
 | --- | --- |
-| 出现验证码、滑块、人脸识别 | 截图或 UI 树含相关文案 |
-| 出现登录/注册/实名认证 | 一律停，交由用户 |
-| 页面要求读取通讯录、相册、位置权限 | 停，不代点授权 |
-| 出现「安全验证」「账号异常」「请稍后再试」 | 停，说明可能触发风控 |
-| UI 树取不到目标元素，且坐标点击一次无效 | 停，不重试第 2 次 |
-| 设备断开 / `adb devices` 变为 `offline` | 停，不自动重连循环 |
+| 验证码、滑块、人脸识别 | `dump` 文本或截图含相关文案 |
+| 登录 / 注册 / 实名认证 | 一律停，交由用户 |
+| 「安全验证」「账号异常」「操作过于频繁」 | 停，说明已触发风控；**当天不再操作该 App** |
+| 设备断开 / `offline` / `unauthorized` | 停，不自动重连循环 |
+| 点击后页面未变化 | 记 `需人工介入`，不重试 |
+| 目标元素连续两次定位失败 | 停，交人工，不换选择器硬试 |
 
-**禁止自动重试**：与浏览器端一致，一次触发即停，不换方案硬绕。
+**禁止自动重试**：一次触发即停。手机端重试的代价是账号被风控，不可逆。
 
-## 6. 截图与 UI 树落盘（隐私）
+## 6. 账号与隐私
 
-手机截图的隐私密度远高于网页：常同时包含真实姓名、手机号、头像、聊天记录、身份证照片预览。
-
-| 规则 | 做法 |
+| 风险 | 处置 |
 | --- | --- |
-| 位置 | 只允许 `logs/screens/`（已 `.gitignore`） |
-| 命名 | `logs/screens/<UTC时间戳>-<job_id>-android-<用途>.png`，用途取 `read` / `filled` |
-| 设备端清理 | 每次 `pull` 后立即 `adb shell rm /sdcard/<file>`，不留副本在手机 |
-| UI 树 | 同上，`ui.xml` 存 `logs/screens/`，用完即删；**禁止**把 XML 全文写进报告 |
-| 报告引用 | 只写文件名与用途，不转录截图内容 |
-| 禁止 | 截图/录屏上传第三方；把含手机号的截图放进 `resumes/`、`reports/`、`docs/` |
+| 高频自动操作触发平台风控 | 间隔 ≥2.5s、单次点击 ≤10、单日单 App 会话 ≤3 次；命中风控当天停 |
+| 平台用户协议可能不允许自动化 | 本工具定位是「辅助本人操作自己的账号」，不做批量群发、不做多账号、不做数据爬取 |
+| 截图含手机号/姓名/聊天记录 | 只落 `logs/screens/`（`.gitignore` 已排除），不上传第三方，不进 `reports/` `resumes/` |
+| UI 树含聊天内容 | 用完即删，报告里只写文件名与用途，不转录内容 |
+| 设备被他人取用 | 用完退出 USB 调试；必要时 `adb kill-server` |
 
 ## 7. 与浏览器端的分工
 
-| 场景 | 用哪个执行器 |
+| 场景 | 执行器 |
 | --- | --- |
 | 企业官网投递、网申表单 | 浏览器（A 路径，用户已登录标签页） |
-| 岗位信息批量采集 | 浏览器只读 |
-| 仅 App 内提供的功能（打招呼、App 内简历投递、HR 即时沟通） | 手机只读 + 引导用户手动操作 |
-| 需要发送消息给 HR | **两个执行器都不做**，永远人工 |
+| 岗位信息采集（公开页） | 浏览器只读（C 路径 `WebFetch` 优先） |
+| 仅 App 内提供的功能（App 内投递、HR 即时沟通） | 手机：浏览 + 定位 + 逐条确认后点击 |
+| 给 HR 写长消息 / 发邮件 | 邮件通道（`email-policy.md`），不走手机 |
 
 ## 8. 从 `unverified` 变 `verified` 的条件（缺一不可）
 
-1. `adb` 已安装且 `adb version` 可执行，路径登记在环境变量或 `config/settings.json`；
+1. `adb` 已安装，`adb version` 可执行，路径登记在 `PATH` / `ADB` 环境变量 / `config/settings.json` 的 `mobile.adb_path`；
 2. `adb devices -l` 稳定输出恰好 1 台 `device`；
-3. 完成一次**只读闭环**：`dumpsys window` 取到前台页面 + `screencap` 截图成功 + `uiautomator dump` 取到 UI 树，三样都成功；
-4. 上述证据写入 `config/settings.json` 的 `mobile_exec.evidence`，含设备型号、Android 版本、时间；
-5. 用户本人确认「允许该设备接入」。
+3. 完成一次**读闭环**：`status` 取到机型与分辨率 + `dump` 取到 UI 树 + `screenshot` 截图成功；
+4. 完成一次**点闭环**：`tap --text` 点击成功且点击后 `dump` 显示的页面确实变化；
+5. 证据写入 `mobile_exec.evidence`，含机型、Android 版本、时间、命中的元素文本；
+6. 用户本人确认「允许该设备接入」。
 
-未满足全部 5 条时，`mobile_exec` 保持 `unverified`，所有手机操作走 `5.3 降级输出（人工操作清单）`。
+未满足全部 6 条 → 保持 `unverified`，降级为「输出操作清单，由用户自己点」。
 
-## 9. 快速自检（每次手机操作前）
+## 9. 每次手机操作前的自检
 
-- [ ] `adb devices -l` 是否恰好 1 台且为 `device`？
-- [ ] 是否带了 `-s`（多设备时）？
-- [ ] 本轮是要「读」还是「写」？写操作是否已说清点哪个元素、会发生什么？
-- [ ] 有没有碰到任何「发送/投递/授权/支付」类按钮？（有 → 停，交给人）
-- [ ] 需要输入中文吗？（是 → 默认交给人，不要硬用 `input text`）
-- [ ] 坐标点击前是否重新截了图？点击后是否复核了？
-- [ ] 截图存 `logs/screens/` 了吗？设备上的副本删了吗？
-- [ ] 出现验证码/权限弹窗/风控提示时，是否会立即停？
+- [ ] `status` 是否恰好 1 台 `device`？多设备是否带了 `--serial`？
+- [ ] 本轮是 L0/L1/L2 还是 L3？L3 是否已就**这一条**取得确认？
+- [ ] 点击前的 `dump` 是新鲜的吗（不是上一轮缓存）？
+- [ ] 点击后是否重新 `dump` 复核了页面变化？
+- [ ] 需要中文输入吗？（是 → 交还用户，不硬用 `input text`）
+- [ ] 距上一次动作是否 ≥ 2.5 秒？本轮点击是否 ≤ 10 次？
+- [ ] 有没有碰到验证码、权限弹窗、风控提示？（有 → 立刻停）
+- [ ] 截图存 `logs/screens/` 了吗？设备端副本删了吗？

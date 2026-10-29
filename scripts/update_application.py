@@ -93,11 +93,76 @@ def next_application_id(applications):
     return "%s%04d" % (prefix, sequence + 1)
 
 
-def append_audit(record, log_path):
-    log_path = resolve(log_path)
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    with open(log_path, "a", encoding="utf-8") as fh:
+def _append_line(path, record):
+    """追加一行 JSONL 并 fsync，保证崩溃前已落盘。"""
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
+def append_audit(record, log_path):
+    _append_line(resolve(log_path), record)
+
+
+def _preflight(path):
+    """写入前确认目录可创建且可写，返回错误文本（空串表示通过）。
+
+    先检查再动手：如果日志目录不可写，宁可在改状态之前失败，
+    也不要出现「状态已更新、审计写不进去」的不可核对状态。
+    """
+    directory = os.path.dirname(path) or "."
+    try:
+        os.makedirs(directory, exist_ok=True)
+    except OSError as exc:
+        return "无法创建目录 %s：%s" % (directory, exc)
+    probe = os.path.join(directory, ".write_probe")
+    try:
+        with open(probe, "w", encoding="utf-8") as fh:
+            fh.write("probe")
+        os.remove(probe)
+    except OSError as exc:
+        return "目录不可写 %s：%s" % (directory, exc)
+    return ""
+
+
+def _new_event_id():
+    return "%s-%s" % (now_iso().replace(":", "").replace("-", "").replace("+", "")[:15], os.urandom(3).hex())
+
+
+def _pending_events(log_path):
+    """找出有 intent 但没有 committed/aborted 的事件（上次写入中途中断）。"""
+    if not os.path.exists(log_path):
+        return []
+    intents, closed = {}, set()
+    try:
+        with open(log_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                event = record.get("event_id")
+                if not event:
+                    continue
+                if record.get("phase") == "intent":
+                    intents[event] = record
+                elif record.get("phase") in ("committed", "aborted"):
+                    closed.add(event)
+    except OSError:
+        return []
+    return [
+        {"event_id": key, "at": (value or {}).get("at"), "job_id": (value or {}).get("job_id")}
+        for key, value in intents.items()
+        if key not in closed
+    ]
 
 
 def main(argv=None):
@@ -226,36 +291,107 @@ def main(argv=None):
     store["schema_version"] = store.get("schema_version") or "1.0"
     store["updated_at"] = at
 
-    backup_path = None
-    if os.path.exists(store_path):
-        backup_path = store_path + ".bak"
-        shutil.copy2(store_path, backup_path)
+    event_id = _new_event_id()
+    log_path = resolve(args.log)
+    pending_before = _pending_events(log_path)
 
-    save_json(store, store_path)
-    append_audit(
-        {
-            "at": at,
-            "job_id": args.job_id,
-            "application_id": current.get("application_id"),
-            "from": previous_status or "",
-            "to": args.status,
-            "note": args.notes or "",
-            "store": rel_path(store_path),
-        },
-        args.log,
-    )
+    preflight_error = _preflight(log_path)
+    if preflight_error:
+        emit(
+            {
+                "ok": False,
+                "event_id": event_id,
+                "error": "审计日志不可写，已中止，状态未做任何修改：%s" % preflight_error,
+            },
+            1,
+        )
+
+    # 先写 intent，再改状态。顺序反了就可能在第二步失败时留下「状态已改、无记录」，
+    # 而 intent 先行最坏只留下「有意图、无结果」的痕迹，可被 _pending_events 检出。
+    try:
+        _append_line(
+            log_path,
+            {
+                "at": at,
+                "phase": "intent",
+                "event_id": event_id,
+                "job_id": args.job_id,
+                "application_id": current.get("application_id"),
+                "from": previous_status or "",
+                "to": args.status,
+                "note": args.notes or "",
+                "store": rel_path(store_path),
+            },
+        )
+    except OSError as exc:
+        emit(
+            {
+                "ok": False,
+                "event_id": event_id,
+                "error": "审计日志写入失败，已中止，状态未做任何修改：%s" % exc,
+            },
+            1,
+        )
+
+    backup_path = None
+    try:
+        if os.path.exists(store_path):
+            backup_path = store_path + ".bak"
+            shutil.copy2(store_path, backup_path)
+        save_json(store, store_path)
+    except OSError as exc:
+        try:
+            _append_line(
+                log_path,
+                {"at": now_iso(), "phase": "aborted", "event_id": event_id, "job_id": args.job_id, "error": str(exc)},
+            )
+        except OSError:
+            pass
+        emit(
+            {
+                "ok": False,
+                "event_id": event_id,
+                "error": "状态写入失败，业务状态未改变（备份保留原文件），审计已记 aborted：%s" % exc,
+            },
+            1,
+        )
+
+    audit_committed = True
+    try:
+        _append_line(
+            log_path,
+            {"at": now_iso(), "phase": "committed", "event_id": event_id, "job_id": args.job_id},
+        )
+    except OSError:
+        # 业务状态已落盘、intent 已存在，可追溯；只缺一个收尾标记。
+        audit_committed = False
 
     result = {
         "ok": True,
+        "event_id": event_id,
         "application_id": current.get("application_id"),
         "job_id": args.job_id,
         "previous_status": previous_status or "",
         "status": args.status,
         "history_count": len(history),
-        "backup": rel_path(backup_path),
+        "backup": rel_path(backup_path) if backup_path else "",
         "store": rel_path(store_path),
+        "audit": {
+            "log": rel_path(log_path),
+            "intent": True,
+            "committed": audit_committed,
+        },
         "warnings": [],
     }
+    if not audit_committed:
+        result["warnings"].append(
+            "业务状态已更新，但审计收尾标记写入失败；日志中该事件的 intent 行（%s）仍可追溯" % event_id
+        )
+    if pending_before:
+        result["warnings"].append(
+            "检测到 %d 条历史未完成事件（有 intent 无 committed/aborted），建议核对：%s"
+            % (len(pending_before), "、".join(item["event_id"] for item in pending_before[:5]))
+        )
     if not current.get("company") or not current.get("title"):
         result["warnings"].append("岗位公司/名称缺失，建议补全后再生成材料")
     if args.status == "已提交" and not current.get("resume_version"):

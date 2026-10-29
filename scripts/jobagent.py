@@ -9,14 +9,15 @@ Skill 被装进 WorkBuddy 后，当前工作目录通常不是 JobAgent 项目�
 收在一处，Skill 只需要调用这三条短命令。
 
 用法:
-    python scripts/jobagent.py doctor [--write] [--root PATH]
+    python scripts/jobagent.py doctor [--write] [--reset-external] [--root PATH]
     python scripts/jobagent.py run    [--root PATH] [--profile PATH] [--raw PATH]
     python scripts/jobagent.py status [--root PATH]
 
 子命令:
     doctor  探测文件读写、脚本执行、目录完整性等能力，输出能力矩阵（P0 环境盘点）。
-            --write 时把结果写回 config/settings.json 的 verified_capabilities。
-    run     依次执行 档案校验 → 标准化去重 → 规则评分，汇总退出码与产物路径。
+            --write 时把结果写回 config/settings.json 的 verified_capabilities；
+            已登记的 verified/unavailable 外部能力不会被覆盖，除非加 --reset-external。
+    run     依次执行 档案校验 → 标准化去重 → 规则评分；前一步失败即停止后续依赖步骤。
     status  读取投递记录与评分结果，输出各状态计数与待跟进项。
 
 退出码: 0 成功；1 存在失败步骤/数据规则不通过；2 参数或文件缺失。
@@ -88,11 +89,42 @@ def _stdlib_report(root):
     }
 
 
-def cmd_doctor(root, write):
+def _probe_mobile(root):
+    """调用 adb_ctl.py status 补充设备证据；不改变 state。
+
+    只有真正跑完「启动 App → dump → 点击 → 复核」闭环才允许置 verified，
+    因此这里只更新证据文案，不自动升级。
+    """
+    try:
+        proc = subprocess.run(
+            [sys.executable, os.path.join(root, "scripts", "adb_ctl.py"), "status"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=25,
+        )
+        payload = json.loads(proc.stdout.strip())
+    except (subprocess.SubprocessError, json.JSONDecodeError, AttributeError, OSError):
+        return ""
+    if payload.get("ok"):
+        screen = payload.get("screen") or {}
+        size = "%sx%s" % (screen.get("width", "?"), screen.get("height", "?")) if screen else "分辨率未知"
+        return "adb 已就绪：%s / Android %s / %s。尚未完成「启动 App → dump → 点击 → 复核」闭环，故仍为 unverified。" % (
+            payload.get("model") or "未知机型",
+            payload.get("android") or "?",
+            size,
+        )
+    return "adb 探测未通过：%s" % (payload.get("error") or "")
+
+
+def cmd_doctor(root, write, reset_external=False):
     checked_at = now_iso()
     missing = [item for item in REQUIRED_DIRS if not os.path.isdir(os.path.join(root, item))]
 
     capabilities = {}
+    preserved = []
 
     # 脚本执行：本进程能跑起来本身就是证据
     capabilities["script_exec"] = {
@@ -146,18 +178,38 @@ def cmd_doctor(root, write):
         "checked_at": checked_at,
     }
 
-    # 外部能力：不猜，保持未验证。
-    # 若 settings 中已登记过更具体的原因（含实测发现、规范路径等），保留它，只刷新 checked_at，
-    # 避免 doctor --write 把用户/维护者写下的证据冲成通用文案。
+    # 外部能力：doctor 本身没有能力实测浏览器/手机/邮件，因此不猜。
+    # 已登记为 verified / unavailable 的条目原样保留（状态与证据都不动），
+    # 只有状态为空或 unverified 时才刷新，且保留更具体的已有文案。
+    # 需要重新探测时必须显式加 --reset-external —— 否则一次普通诊断会把
+    # 用户辛苦实测出来的 verified 静默打回 unverified。
     existing_caps = (settings or {}).get("verified_capabilities") or {}
     for name, reason in EXTERNAL_CAPABILITIES.items():
         prev = existing_caps.get(name) or {}
-        keep = prev.get("state") == "unverified" and prev.get("evidence")
-        capabilities[name] = {
-            "state": "unverified",
-            "evidence": prev["evidence"] if keep else reason,
-            "checked_at": checked_at,
-        }
+        prev_state = prev.get("state")
+        if reset_external:
+            capabilities[name] = {"state": "unverified", "evidence": reason, "checked_at": checked_at}
+        elif prev_state in (None, "", "unverified"):
+            capabilities[name] = {
+                "state": "unverified",
+                "evidence": prev.get("evidence") or reason,
+                "checked_at": checked_at,
+            }
+        else:
+            capabilities[name] = {
+                "state": prev_state,
+                "evidence": prev.get("evidence") or reason,
+                "checked_at": prev.get("checked_at") or checked_at,
+                "preserved": True,
+            }
+        if capabilities[name].get("preserved"):
+            preserved.append(name)
+
+    # 手机能力：补一条实时探测证据（adb 是否装、设备是否连上），但不自动升级状态。
+    if capabilities.get("mobile_exec", {}).get("state") == "unverified":
+        probe = _probe_mobile(root)
+        if probe:
+            capabilities["mobile_exec"]["evidence"] = probe
 
     result = {
         "ok": not missing and capabilities["file_read"]["state"] == "verified",
@@ -168,9 +220,11 @@ def cmd_doctor(root, write):
         "missing_dirs": missing,
         "stdlib": stdlib,
         "capabilities": capabilities,
+        "preserved_external": preserved,
         "notes": [
             "verified 表示本次已取得可复现证据；unverified 表示尚未实测，一律按「未接入」处理。",
-            "browser_exec / mobile_exec 只有用户完成 P4/P5 实测并确认后才可改为 verified。",
+            "browser_exec / mobile_exec / email_exec 只由实测确认后置 verified；doctor 不探测也不降级已登记的状态。",
+            "重新探测外部能力需显式 --reset-external。" if preserved else "外部能力均未登记验证结果，本次全部按未接入处理。",
         ],
     }
 
@@ -201,10 +255,26 @@ def _run_step(root, script, args):
         payload = json.loads(proc.stdout.strip())
     except (json.JSONDecodeError, AttributeError):
         payload = None
-    return {"script": script, "code": proc.returncode, "json": payload, "stderr": proc.stderr.strip()}
+    return {
+        "script": script,
+        "code": proc.returncode,
+        "status": "ok" if proc.returncode == 0 else "failed",
+        "json": payload,
+        "stderr": proc.stderr.strip(),
+    }
+
+
+def _skipped_step(script, reason):
+    return {"script": script, "code": None, "status": "skipped", "json": None, "stderr": reason}
 
 
 def cmd_run(root, profile, raw):
+    """按依赖链执行：档案校验 → 岗位标准化 → 评分。
+
+    前一步失败即停止其后所有依赖步骤，并保留失败点的真实退出码。
+    原实现只判断标准化结果，档案校验失败仍会继续评分 —— 会出现
+    「档案不合法但评分成功」的混合状态，报告看起来正常却建立在坏数据上。
+    """
     profile = profile or "profile/profile.json"
     raw = raw or "jobs/raw/raw_jobs.json"
 
@@ -212,14 +282,18 @@ def cmd_run(root, profile, raw):
     steps.append(
         _run_step(root, "validate_profile.py", ["--profile", profile, "--report", "reports/profile-report.md"])
     )
-    steps.append(
-        _run_step(
-            root,
-            "normalize_jobs.py",
-            ["--input", raw, "--output", "jobs/jobs.normalized.json", "--report", "reports/dedupe-report.md"],
-        )
-    )
     if steps[-1]["code"] == 0:
+        steps.append(
+            _run_step(
+                root,
+                "normalize_jobs.py",
+                ["--input", raw, "--output", "jobs/jobs.normalized.json", "--report", "reports/dedupe-report.md"],
+            )
+        )
+    else:
+        steps.append(_skipped_step("normalize_jobs.py", "前置档案校验失败，已跳过（退出码 %s）" % steps[-1]["code"]))
+
+    if steps[-1]["status"] == "ok":
         steps.append(
             _run_step(
                 root,
@@ -234,18 +308,20 @@ def cmd_run(root, profile, raw):
             )
         )
     else:
-        steps.append({"script": "score_jobs.py", "code": None, "json": None, "stderr": "前置标准化失败，已跳过"})
+        steps.append(_skipped_step("score_jobs.py", "前置岗位标准化失败，已跳过"))
 
-    failed = [item for item in steps if item["code"] not in (0,)]
+    failed = [item for item in steps if item["status"] == "failed"]
     summary = {
         "ok": not failed,
         "generated_at": now_iso(),
         "generated_by": "scripts/jobagent.py run",
         "profile": profile,
         "raw": raw,
+        "failed_at": failed[0]["script"] if failed else None,
         "steps": [
             {
                 "script": item["script"],
+                "status": item["status"],
                 "code": item["code"],
                 "outputs": {
                     key: item["json"].get(key)
@@ -256,7 +332,11 @@ def cmd_run(root, profile, raw):
             }
             for item in steps
         ],
-        "next": "打开 reports/scored-report.md 查看评分明细；选定岗位后再走材料生成与显式确认。",
+        "next": (
+            "修正 %s 报告中的问题后重跑。" % failed[0]["script"]
+            if failed
+            else "打开 reports/scored-report.md 查看评分明细；选定岗位后再走材料生成与显式确认。"
+        ),
     }
     emit(summary, 0 if summary["ok"] else 1)
 
@@ -359,6 +439,11 @@ def main():
 
     p_doctor = sub.add_parser("doctor", help="探测文件读写/脚本执行等能力（P0 环境盘点）")
     p_doctor.add_argument("--write", action="store_true", help="把能力矩阵写回 config/settings.json")
+    p_doctor.add_argument(
+        "--reset-external",
+        action="store_true",
+        help="连同已登记的外部能力（browser/mobile/email）一起重置为 unverified",
+    )
 
     p_run = sub.add_parser("run", help="依次执行 校验 → 标准化去重 → 评分")
     p_run.add_argument("--profile", help="档案路径，默认 profile/profile.json")
@@ -388,7 +473,7 @@ def main():
         )
 
     if args.command == "doctor":
-        cmd_doctor(root, args.write)
+        cmd_doctor(root, args.write, args.reset_external)
     elif args.command == "run":
         cmd_run(root, args.profile, args.raw)
     elif args.command == "search":

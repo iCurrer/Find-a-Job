@@ -82,8 +82,8 @@ def parse_salary(value):
         return {"salary_text": raw, "salary_unparsed": True}
 
     cleaned = re.sub(r"\d+(?:\.\d+)?\s*薪", "", raw)  # 去掉“13薪”里的数字
-    numbers = [float(item) for item in re.findall(r"\d+(?:\.\d+)?", cleaned)]
-    if not numbers:
+    endpoints = _salary_endpoints(cleaned)
+    if not endpoints:
         return {"salary_text": raw, "salary_unparsed": True}
 
     if re.search(r"(元|块)?\s*/\s*(天|日)|每\s*(天|日)|日薪", cleaned):
@@ -93,34 +93,76 @@ def parse_salary(value):
     else:
         period = "month"
 
-    if "万" in cleaned:
-        unit = 10000
-    elif re.search(r"[kK千]", cleaned):
-        unit = 1000
-    else:
-        unit = 1
+    resolved = _resolve_salary_scales(endpoints)
+    if len(resolved) > 2:  # 只取区间两端，避免中间的修饰数字干扰
+        resolved = [resolved[0], resolved[-1]]
+    values = [amount * scale for amount, scale in resolved]
+    salary_min, salary_max = int(round(min(values))), int(round(max(values)))
+    result_extra = {}
+    if salary_min > 0 and salary_max / salary_min > 30:
+        # 「8千-1.2万」这类混合单位若解析错，跨度会离谱；不静默采信。
+        result_extra["salary_warning"] = "薪资区间跨度异常（%d–%d），需人工核对原文" % (salary_min, salary_max)
 
-    low, high = numbers[0], numbers[-1] if len(numbers) > 1 else numbers[0]
-    low, high = min(low, high), max(low, high)
-    salary_min, salary_max = int(round(low * unit)), int(round(high * unit))
     if period == "year":
         month_min, month_max = round(salary_min / 12), round(salary_max / 12)
+        basis = "年薪按 12 个月折算，未含年终奖"
     elif period == "day":
         month_min, month_max = round(salary_min * 21), round(salary_max * 21)
+        basis = "按每月 21 个工作日折算"
     else:
         month_min, month_max = salary_min, salary_max
-    monthly = {
-        "min": month_min,
-        "max": month_max,
-        "basis": "按每月 21 个工作日折算" if period == "day" else "按月折算",
-    }
-    return {
+        basis = "按月折算"
+    monthly = {"min": month_min, "max": month_max, "basis": basis}
+    result = {
         "salary_text": raw,
         "salary_min": salary_min,
         "salary_max": salary_max,
         "salary_period": period,
         "salary_month_equivalent": monthly,
     }
+    result.update(result_extra)
+    return result
+
+
+# 「万 / 千 / K / W」四种写法都要认；单位必须跟着数字走。
+SALARY_TOKEN = re.compile(r"(\d+(?:\.\d+)?)\s*([万wW]|[kK千])?")
+
+
+def _salary_endpoints(text):
+    """按出现顺序返回 [(金额, 倍率或 None)]，倍率为 None 表示原文本没写单位。"""
+    items = []
+    for match in SALARY_TOKEN.finditer(text):
+        amount = float(match.group(1))
+        unit = (match.group(2) or "").lower()
+        if unit in ("万", "w"):
+            scale = 10000
+        elif unit in ("千", "k"):
+            scale = 1000
+        else:
+            scale = None
+        items.append((amount, scale))
+    return items
+
+
+def _resolve_salary_scales(items):
+    """补齐缺失的倍率。
+
+    关键规则：缺失单位时，**数值 ≥ 1000 一律按「元」处理**。
+    「8千-1.2万」两端都有单位，各算各的；「8000-1.2万」里的 8000 本来就是元，
+    不能因为另一段有“万”就乘一万 —— 那会把 8000 放大成 8000 万。
+    """
+    explicit = [scale for _amount, scale in items if scale]
+    resolved = []
+    for amount, scale in items:
+        if scale:
+            resolved.append((amount, scale))
+        elif amount >= 1000:
+            resolved.append((amount, 1))
+        elif explicit:
+            resolved.append((amount, explicit[0]))
+        else:
+            resolved.append((amount, 1))
+    return resolved
 
 
 def normalize_job(raw, index, default_collected):

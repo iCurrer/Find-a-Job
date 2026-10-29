@@ -199,23 +199,243 @@ def job_text(job):
     )
 
 
+def job_raw_text(job):
+    """保留换行与标点的原文，供需要「句界」的判断使用（学历门槛等）。
+
+    job_text 会去掉所有空白（为了关键词匹配），但那样会把多行要求压成一整句，
+    导致「本科在读」这类短要求被并进长句、判不出是不是门槛。两个文本各司其职。
+    """
+    return "\n".join(
+        text_of(job.get(field))
+        for field in (
+            "title",
+            "company",
+            "location",
+            "industry",
+            "job_type",
+            "requirements",
+            "responsibilities",
+            "raw_text",
+        )
+    )
+
+
 def max_degree_rank(facts, degree_rank):
     ranks = [degree_rank.get(degree, 0) for degree in facts["degrees"]]
     return max(ranks) if ranks else 0
 
 
+# 学历别名：从低到高排列，索引即可比较高低，避免依赖 config 的 rank 表做语义判断。
+DEGREE_ALIASES = (
+    ("大专", ("大专", "专科", "高职")),
+    ("本科", ("本科", "学士", "bachelor")),
+    ("硕士", ("硕士", "研究生", "mba", "master")),
+    ("博士", ("博士", "phd", "ph.d")),
+)
+
+# 出现在学历词之前、说明这是“描述他人/团队”而非“要求应聘者”的语境。
+DEGREE_IGNORE_BEFORE = ("团队", "伙伴", "同事", "导师", "员工", "顾问", "客户", "领导", "汇报")
+# 出现在学历词之后、说明这是研究方向/背景描述而非门槛的语境。
+DEGREE_IGNORE_AFTER = ("方向", "课题", "论文", "团队", "项目组", "背景者", "学历者")
+
+# 明确表示“这是最低门槛”的标记。
+DEGREE_HARD_MARKERS = ("及以上", "以上", "至少", "起步", "学历要求", "学位要求")
+# 明确表示“这只是加分项”的标记。
+DEGREE_PREFERENCE_MARKERS = ("优先", "加分", "尤佳", "为佳", "更佳", "更优", "最好", "preferred")
+# 表示“这是要求句”的弱标记，用于判断裸写的学历词是否属于要求。
+DEGREE_SOFT_MARKERS = ("要求", "需", "应", "须", "具备", "资格", "学历", "学位", "招聘", "在读", "应届", "毕业")
+
+
+def _split_degree_sentences(text):
+    return [part.strip() for part in re.split(r"[。；;！!？?\n\r]+", text or "") if part.strip()]
+
+
+def _degree_mentions(sentence):
+    """返回 [(start, end, degree, alias)]，并处理“博士研究生”这类包含关系。"""
+    normalized = sentence.replace("博士研究生", "博士").replace("硕士研究生", "硕士")
+    hits = []
+    for degree, aliases in DEGREE_ALIASES:
+        for alias in aliases:
+            start = 0
+            while True:
+                index = normalized.find(alias, start)
+                if index < 0:
+                    break
+                hits.append({"start": index, "end": index + len(alias), "degree": degree, "alias": alias})
+                start = index + len(alias)
+    # 被更长命中完整覆盖的短命中丢弃（如“本科”落在“本科生优先”已被覆盖的情形）
+    kept = []
+    for hit in hits:
+        covered = any(
+            other is not hit
+            and other["start"] <= hit["start"]
+            and hit["end"] <= other["end"]
+            and (other["end"] - other["start"]) > (hit["end"] - hit["start"])
+            for other in hits
+        )
+        if not covered:
+            kept.append(hit)
+    kept.sort(key=lambda item: item["start"])
+    return normalized, kept
+
+
+def _classify_degree_mention(sentence, hit):
+    """把单个学历词判为 requirement / preference / ignore / mention。
+
+    判定只能在**同一小句内**进行：取标点截断后的局部窗口。否则
+    「本科及以上，博士优先」里的“优先”会被算到“本科”头上，
+    反过来把「本科及以上」误判成优先条件。
+    """
+    before = sentence[max(0, hit["start"] - 12):hit["start"]]
+    after = sentence[hit["end"]:hit["end"] + 12]
+    before_local = re.split(r"[，,、；;：:（(）)\s]", before)[-1]
+    after_local = re.split(r"[，,、；;：:（(）)\s]", after)[0]
+
+    if any(word in before_local for word in DEGREE_IGNORE_BEFORE):
+        return "ignore"
+    if any(word in after_local for word in DEGREE_IGNORE_AFTER):
+        return "ignore"
+
+    if any(marker in before_local for marker in DEGREE_PREFERENCE_MARKERS):
+        return "preference"
+    if any(marker in after_local for marker in DEGREE_PREFERENCE_MARKERS):
+        return "preference"
+    if any(marker in before_local or marker in after_local for marker in DEGREE_HARD_MARKERS):
+        return "requirement"
+    return "mention"
+
+
 def detect_required_degree(job, degree_rank, text):
+    """识别岗位的最低学历门槛，并区分「最低要求 / 仅优先 / 不限」。
+
+    返回 dict：
+        degree      命中的学历词（"" 表示未识别）
+        role        requirement（最低门槛）/ preference（仅优先）/ unlimited / unknown
+        confidence  high（结构化字段或“及以上”类硬标记）/ medium（要求句中的裸写）/ low（仅提及）
+        evidence    判定依据的原文片段
+        mentions    全部命中及其角色，供报告展示
+
+    设计约束：**只有 role=requirement 且 confidence 不为 low 才允许硬性阻断。**
+    纯字符串顺序匹配（原实现按 博士→硕士→本科→大专 取第一个命中）会把
+    「本科及以上，博士优先」判成博士门槛，直接把本科候选人一票否决。
+    """
     explicit = str(job.get("degree") or "").strip()
+    result = {
+        "degree": "",
+        "role": "unknown",
+        "confidence": "low",
+        "evidence": "",
+        "preferred": [],
+        "mentions": [],
+        "source": "field" if explicit else "text",
+    }
+
     if explicit:
-        for degree in ("博士", "硕士", "本科", "大专"):
-            if degree in explicit:
-                return degree
-        if "不限" in explicit:
-            return "不限"
-    for degree in ("博士", "硕士", "本科", "大专"):
-        if degree in text:
-            return degree
-    return ""
+        if re.search(r"(学历|学位)?\s*不限|不限\s*(学历|学位)", explicit):
+            result.update({"role": "unlimited", "confidence": "high", "evidence": explicit})
+            return result
+        normalized, hits = _degree_mentions(explicit)
+        classified = [(hit, _classify_degree_mention(normalized, hit)) for hit in hits]
+        result["mentions"] = [
+            {"degree": hit["degree"], "role": role, "snippet": explicit}
+            for hit, role in classified
+        ]
+        requirements = [hit for hit, role in classified if role in ("requirement", "mention")]
+        preferences = [hit for hit, role in classified if role == "preference"]
+        if requirements:
+            lowest = min(requirements, key=lambda item: _degree_index(item["degree"]))
+            result.update(
+                {
+                    "degree": lowest["degree"],
+                    "role": "requirement",
+                    "confidence": "high",
+                    "evidence": explicit,
+                    "preferred": sorted({hit["degree"] for hit in preferences}, key=_degree_index),
+                }
+            )
+            return result
+        if preferences:
+            lowest = min(preferences, key=lambda item: _degree_index(item["degree"]))
+            result.update(
+                {
+                    "degree": lowest["degree"],
+                    "role": "preference",
+                    "confidence": "high",
+                    "evidence": explicit,
+                }
+            )
+            return result
+        return result
+
+    requirement_hits = []
+    preference_hits = []
+    unlimited_evidence = ""
+    for sentence in _split_degree_sentences(text):
+        if re.search(r"(学历|学位)?\s*不限|不限\s*(学历|学位)", sentence):
+            unlimited_evidence = unlimited_evidence or sentence
+            continue
+        normalized, hits = _degree_mentions(sentence)
+        for hit in hits:
+            role = _classify_degree_mention(normalized, hit)
+            result["mentions"].append(
+                {"degree": hit["degree"], "role": role, "snippet": sentence[:120]}
+            )
+            has_hard = any(marker in sentence for marker in DEGREE_HARD_MARKERS)
+            has_soft = any(marker in sentence for marker in DEGREE_SOFT_MARKERS)
+            if role == "requirement":
+                requirement_hits.append(
+                    {"hit": hit, "confidence": "high" if has_hard else "medium", "sentence": sentence}
+                )
+            elif role == "mention":
+                if has_hard or has_soft:
+                    requirement_hits.append(
+                        {"hit": hit, "confidence": "high" if has_hard else "medium", "sentence": sentence}
+                    )
+                elif len(sentence) <= 12:
+                    # 短标签行（如单独一行「本科」「本科或硕士」）视为要求，但只给 medium。
+                    requirement_hits.append({"hit": hit, "confidence": "medium", "sentence": sentence})
+                else:
+                    requirement_hits.append({"hit": hit, "confidence": "low", "sentence": sentence})
+            elif role == "preference":
+                preference_hits.append({"hit": hit, "sentence": sentence})
+
+    if unlimited_evidence:
+        result.update({"role": "unlimited", "confidence": "high", "evidence": unlimited_evidence[:120]})
+        return result
+
+    if requirement_hits:
+        # 取最低的那个学历作为门槛：「本科及以上，硕士优先」→ 本科
+        best = min(requirement_hits, key=lambda item: (_degree_index(item["hit"]["degree"]), item["confidence"] != "low"))
+        confidence = "low" if best["confidence"] == "low" else best["confidence"]
+        result.update(
+            {
+                "degree": best["hit"]["degree"],
+                "role": "requirement",
+                "confidence": confidence,
+                "evidence": best["sentence"][:120],
+                "preferred": sorted({item["hit"]["degree"] for item in preference_hits}, key=_degree_index),
+            }
+        )
+        return result
+
+    if preference_hits:
+        best = min(preference_hits, key=lambda item: _degree_index(item["hit"]["degree"]))
+        result.update(
+            {
+                "degree": best["hit"]["degree"],
+                "role": "preference",
+                "confidence": "medium",
+                "evidence": best["sentence"][:120],
+            }
+        )
+    return result
+
+
+def _degree_index(degree):
+    for index, (name, _aliases) in enumerate(DEGREE_ALIASES):
+        if name == degree:
+            return index
+    return len(DEGREE_ALIASES)
 
 
 def score_responsibilities(job, facts, config):
@@ -255,14 +475,21 @@ def score_responsibilities(job, facts, config):
 
 def score_hard_requirements(job, facts, config):
     text = job_text(job)
+    # 学历判断用保留句界的原文：job_text 去掉了换行，会把多行要求压成一整句。
+    degree_text = job_raw_text(job)
     degree_rank = config["degree_rank"]
     profile_rank = max_degree_rank(facts, degree_rank)
-    required_degree = detect_required_degree(job, degree_rank, text)
+    degree_info = detect_required_degree(job, degree_rank, degree_text)
+    required_degree = degree_info["degree"]
+    degree_role = degree_info["role"]
+    degree_confidence = degree_info["confidence"]
     reasons, missing, risks = [], [], []
     warnings = []
     hard_fail = False
 
-    if required_degree and required_degree != "不限":
+    if degree_role == "unlimited":
+        reasons.append("学历不限")
+    elif degree_role == "requirement" and degree_confidence in ("high", "medium"):
         required_rank = degree_rank.get(required_degree, 0)
         if profile_rank == 0:
             missing.append("档案未确认学历，无法判断学历门槛")
@@ -270,13 +497,39 @@ def score_hard_requirements(job, facts, config):
         elif required_rank > profile_rank:
             hard_fail = True
             reasons.append(
-                "学历要求 %s，档案最高为 %s：硬性不满足，总分不改变该结论"
-                % (required_degree, "/".join(facts["degrees"]) or "未确认")
+                "学历要求 %s（依据：%s），档案最高为 %s：硬性不满足，总分不改变该结论"
+                % (required_degree, degree_info["evidence"], "/".join(facts["degrees"]) or "未确认")
             )
         else:
-            reasons.append("学历要求 %s，档案为 %s，满足" % (required_degree, "/".join(facts["degrees"])))
-    elif required_degree == "不限":
-        reasons.append("学历不限")
+            reasons.append(
+                "学历要求 %s，档案为 %s，满足"
+                % (required_degree, "/".join(facts["degrees"]))
+            )
+        higher_preferred = [
+            degree for degree in (degree_info.get("preferred") or [])
+            if degree_rank.get(degree, 0) > degree_rank.get(required_degree, 0)
+        ]
+        if higher_preferred:
+            reasons.append("岗位同时写明 %s 优先，不构成门槛但影响竞争力" % "/".join(higher_preferred))
+            risks.append("%s 优先：学历不是硬门槛，但同岗竞争者学历可能更高" % "/".join(higher_preferred))
+        higher_preferred = [
+            degree for degree in (degree_info.get("preferred") or [])
+            if degree_rank.get(degree, 0) > degree_rank.get(required_degree, 0)
+        ]
+        if higher_preferred:
+            reasons.append("岗位同时写明 %s 优先，不构成门槛但影响竞争力" % "/".join(higher_preferred))
+            risks.append("%s 优先：学历不是硬门槛，但同岗竞争者学历可能更高" % "/".join(higher_preferred))
+    elif degree_role == "requirement" and degree_confidence == "low":
+        # 只在原文里被提到、没有“及以上/要求”类标记：不足以一票否决，交人工确认。
+        missing.append("岗位出现学历词「%s」，但无法确认是否为最低门槛" % required_degree)
+        risks.append("学历门槛待确认：%s" % degree_info["evidence"])
+    elif degree_role == "preference":
+        reasons.append("岗位仅写明「%s 优先」，不构成最低门槛" % required_degree)
+        risks.append(
+            "岗位写明「%s 优先」，学历不阻断投递，但同岗竞争者的学历可能更高" % required_degree
+        )
+        if profile_rank and degree_rank.get(required_degree, 0) > profile_rank:
+            missing.append("岗位偏好学历高于档案（%s 优先），需评估竞争力" % required_degree)
     else:
         missing.append("岗位学历要求未标注")
 

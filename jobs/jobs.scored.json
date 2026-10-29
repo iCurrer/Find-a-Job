@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-10-29T13:37:32+08:00",
+  "generated_at": "2026-10-29T16:42:45+08:00",
   "generated_by": "scripts/score_jobs.py",
   "config_version": "1.0.0",
   "counts": {
@@ -137,7 +137,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:37:32+08:00"
+      "scored_at": "2026-10-29T16:42:45+08:00"
     },
     {
       "job_id": "job-3328bafe3a-6987",
@@ -268,7 +268,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:37:32+08:00"
+      "scored_at": "2026-10-29T16:42:45+08:00"
     },
     {
       "job_id": "job-6716c6394a-7bc1",
@@ -400,7 +400,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:37:32+08:00"
+      "scored_at": "2026-10-29T16:42:45+08:00"
     },
     {
       "job_id": "job-38ecf4e2a4-b341",
@@ -456,7 +456,7 @@
           "weight": 0.2,
           "weighted": 0.0,
           "reasons": [
-            "学历要求 硕士，档案最高为 本科：硬性不满足，总分不改变该结论"
+            "学历要求 硕士（依据：硕士及以上学历，计算机相关专业），档案最高为 本科：硬性不满足，总分不改变该结论"
           ],
           "evidence": [],
           "missing_info": [],
@@ -522,13 +522,13 @@
         }
       ],
       "top_reasons": [
-        "硬性阻断：学历要求 硕士，档案最高为 本科：硬性不满足，总分不改变该结论",
+        "硬性阻断：学历要求 硕士（依据：硕士及以上学历，计算机相关专业），档案最高为 本科：硬性不满足，总分不改变该结论",
         "个人偏好符合度：城市符合偏好（上海）",
         "个人偏好符合度：岗位类型符合偏好"
       ],
       "blocked": true,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:37:32+08:00"
+      "scored_at": "2026-10-29T16:42:45+08:00"
     },
     {
       "job_id": "job-4f81f6a9ed-bd01",
@@ -664,7 +664,7 @@
       ],
       "blocked": false,
       "evaluated": true,
-      "scored_at": "2026-10-29T13:37:32+08:00"
+      "scored_at": "2026-10-29T16:42:45+08:00"
     },
     {
       "job_id": "job-6d4169afd8-43eb",

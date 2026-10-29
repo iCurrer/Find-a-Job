@@ -25,7 +25,8 @@ ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
 RESULTS = []
 
 
-def run(script, args):
+def run(script, args, extra_env=None):
+    env = dict(ENV, **(extra_env or {}))
     proc = subprocess.run(
         [PYTHON, os.path.join(ROOT, "scripts", script)] + [str(item) for item in args],
         cwd=ROOT,
@@ -33,7 +34,7 @@ def run(script, args):
         text=True,
         encoding="utf-8",
         errors="replace",
-        env=ENV,
+        env=env,
     )
     payload = None
     try:
@@ -420,8 +421,14 @@ def t16(ctx):
               "禁止依赖清单应包含 %s" % dep)
 
     check(mobile.get("runtime") == "adb", "手机执行器应为 adb")
-    check(mobile.get("allow_send_like_actions") is False, "手机端不得允许发送类动作")
+    # 手机端现在允许操控，但发送类必须逐条确认，且禁止批量
+    check(mobile.get("send_like_policy") == "confirm_each", "发送类动作应为逐条确认（confirm_each）")
+    check(mobile.get("allow_bulk_send") is False, "手机端不得允许批量发送")
+    check(mobile.get("max_send_actions_per_job") == 1, "每岗位发送动作上限应为 1")
+    check((mobile.get("action_levels") or {}).get("send_like") == "confirm_each", "action_levels.send_like 应为 confirm_each")
     check(mobile.get("allow_credential_input") is False, "手机端不得允许输入凭据")
+    check(mobile.get("element_strategy") == "uiautomator_before_coordinate", "必须先 uiautomator 定位再考虑坐标")
+    check(mobile.get("min_interval_seconds", 0) >= 2, "动作间隔应 ≥ 2 秒，避免触发风控")
 
     email = policy.get("email") or {}
     check(email.get("runtime") == "user_mail_connector", "邮件执行器应为用户本人邮箱连接器")
@@ -453,10 +460,18 @@ def t16(ctx):
         check(proc.returncode == 0, "doctor --write 应成功：%s" % proc.stderr[:300])
         after = load_json(settings_path)["verified_capabilities"]
         for name in ("browser_exec", "mobile_exec", "email_exec"):
-            check(after[name]["state"] == "unverified", "%s 仍应为 unverified" % name)
+            check(
+                after[name]["state"] == before[name]["state"],
+                "%s 的状态被 doctor --write 改动了（%s -> %s）" % (name, before[name]["state"], after[name]["state"]),
+            )
+        # mobile_exec 的证据会被实时 adb 探测刷新（刻意行为），其余两项必须原样保留。
+        for name in ("browser_exec", "email_exec"):
             if before[name].get("evidence"):
                 check(after[name]["evidence"] == before[name]["evidence"],
                       "%s 的已登记证据被 doctor --write 冲掉了" % name)
+        check("adb" in (after["mobile_exec"].get("evidence") or "").lower()
+              or after["mobile_exec"]["state"] == "verified",
+              "mobile_exec 的证据应反映本次 adb 探测结果")
         check("executor_policy" in load_json(settings_path), "doctor --write 不得删除 executor_policy")
     finally:
         shutil.copy2(backup, settings_path)
@@ -630,6 +645,294 @@ def t20(ctx):
                 os.remove(os.path.join(tmp, name))
 
 
+# ---------------------------------------------------------------------------
+# T21 学历门槛语义：区分「最低要求 / 仅优先 / 团队描述」
+# ---------------------------------------------------------------------------
+def _custom_pipeline(tmp, jobs, tag):
+    """按给定岗位列表跑 标准化 + 评分，返回 (normalized, scored)。"""
+    raw_path = os.path.join(tmp, "raw_%s.json" % tag)
+    normalized_path = os.path.join(tmp, "normalized_%s.json" % tag)
+    scored_path = os.path.join(tmp, "scored_%s.json" % tag)
+    with open(raw_path, "w", encoding="utf-8") as fh:
+        json.dump({"schema_version": "1.0", "jobs": jobs}, fh, ensure_ascii=False)
+    proc = run(
+        "normalize_jobs.py",
+        ["--input", raw_path, "--output", normalized_path, "--report", os.path.join(tmp, "dedupe_%s.md" % tag)],
+    )
+    check(proc["code"] == 0, "自定义岗位标准化失败：%s" % (proc["json"] or {}).get("error"))
+    proc = run(
+        "score_jobs.py",
+        [
+            "--jobs", normalized_path,
+            "--profile", os.path.join("tests", "sample_profile.json"),
+            "--config", os.path.join("config", "scoring.json"),
+            "--output", scored_path,
+            "--report", os.path.join(tmp, "scored_%s.md" % tag),
+        ],
+    )
+    check(proc["code"] == 0, "自定义岗位评分失败：%s" % (proc["json"] or {}).get("error"))
+    return load_json(normalized_path), load_json(scored_path)
+
+
+def _candidate_job(title, requirements, **extra):
+    item = {
+        "company": "示例公司",
+        "title": title,
+        "location": "上海",
+        "url": "https://careers.example.com/%s" % title,
+        "source": "company_career_site",
+        "requirements": requirements,
+        "collected_at": "2026-10-29T10:00:00+08:00",
+    }
+    item.update(extra)
+    return item
+
+
+def t21(ctx):
+    _normalized, scored = _custom_pipeline(
+        ctx["tmp"],
+        [
+            _candidate_job("学历优先岗", ["本科及以上学历，博士优先"]),
+            _candidate_job("博士团队岗", ["由博士团队领衔，负责课题研究"]),
+            _candidate_job("硕士门槛岗", ["硕士及以上学历"]),
+        ],
+        "degree",
+    )
+    for title in ("学历优先岗", "博士团队岗"):
+        job = job_by_title(scored, title)
+        check(
+            job["blocked"] is False,
+            "%s 不应被学历门槛阻断（当前状态：%s）—— 「博士优先」「博士团队」不是最低学历要求" % (title, job["status"]),
+        )
+    hard = [dim for dim in job_by_title(scored, "学历优先岗")["score_breakdown"] if dim["key"] == "hard_requirements"][0]
+    check("优先" in " ".join(hard["reasons"]) + " ".join(hard["risks"]), "应说明该岗位只是「博士优先」，非门槛")
+    blocked_job = job_by_title(scored, "硕士门槛岗")
+    check(blocked_job["blocked"] is True, "「硕士及以上」对本科档案仍应阻断")
+    check(blocked_job["status"] == "不匹配", "被阻断岗位状态应为不匹配，实际 %s" % blocked_job["status"])
+
+
+# ---------------------------------------------------------------------------
+# T22 主流程失败传播：档案校验失败后不得继续评分
+# ---------------------------------------------------------------------------
+def t22(ctx):
+    bad_profile = os.path.join(ctx["tmp"], "bad_profile.json")
+    with open(bad_profile, "w", encoding="utf-8") as fh:
+        json.dump({"schema_version": "1.0"}, fh, ensure_ascii=False)
+
+    proc = run("jobagent.py", ["run", "--profile", bad_profile])
+    check(proc["code"] == 1, "档案校验失败时入口应返回退出码 1，实际 %s" % proc["code"])
+    payload = proc["json"]
+    check(payload and payload["ok"] is False, "ok 应为 false")
+    check(payload.get("failed_at") == "validate_profile.py", "failed_at 应指向档案校验，实际 %r" % payload.get("failed_at"))
+    statuses = {step["script"]: step["status"] for step in payload["steps"]}
+    check(statuses.get("normalize_jobs.py") == "skipped", "档案校验失败后标准化必须跳过")
+    check(statuses.get("score_jobs.py") == "skipped", "档案校验失败后评分必须跳过")
+    check(payload["steps"][0]["code"] == 1, "应保留真实的失败退出码，而不是笼统记 false")
+
+
+# ---------------------------------------------------------------------------
+# T23 薪资解析：区间两端单位独立识别
+# ---------------------------------------------------------------------------
+def t23(ctx):
+    normalized, _scored = _custom_pipeline(
+        ctx["tmp"],
+        [
+            _candidate_job("混合单位岗", ["本科及以上"], salary="8千-1.2万"),
+            _candidate_job("日薪岗", ["本科及以上"], salary="150-200元/天"),
+            _candidate_job("年薪岗", ["本科及以上"], salary="20-30万/年"),
+            _candidate_job("大写K岗", ["本科及以上"], salary="15-25K"),
+        ],
+        "salary",
+    )
+
+    mixed = job_by_title(normalized, "混合单位岗")
+    check(mixed["salary_min"] == 8000, "「8千-1.2万」下限应为 8000，实际 %s" % mixed["salary_min"])
+    check(mixed["salary_max"] == 12000, "「8千-1.2万」上限应为 12000，实际 %s" % mixed["salary_max"])
+
+    daily = job_by_title(normalized, "日薪岗")
+    check(daily["salary_period"] == "day", "「150-200元/天」周期应为 day")
+    check(daily["salary_month_equivalent"]["min"] == 3150, "日薪下限按月折算应为 3150，实际 %s" % daily["salary_month_equivalent"]["min"])
+
+    yearly = job_by_title(normalized, "年薪岗")
+    check(yearly["salary_period"] == "year", "「20-30万/年」周期应为 year")
+    check(yearly["salary_max"] == 300000, "年薪上限应为 300000，实际 %s" % yearly["salary_max"])
+
+    k = job_by_title(normalized, "大写K岗")
+    check((k["salary_min"], k["salary_max"]) == (15000, 25000), "「15-25K」应解析为 15000-25000，实际 %s-%s" % (k["salary_min"], k["salary_max"]))
+
+
+# ---------------------------------------------------------------------------
+# T24 投递记录与审计日志一致性：先记意图、日志不可写则不动状态
+# ---------------------------------------------------------------------------
+def t24(ctx):
+    store = os.path.join(ctx["tmp"], "audit_apps.json")
+    log = os.path.join(ctx["tmp"], "audit.jsonl")
+    with open(store, "w", encoding="utf-8") as fh:
+        json.dump({"schema_version": "1.0", "applications": []}, fh, ensure_ascii=False)
+
+    first = run(
+        "update_application.py",
+        ["--job-id", "job-audit-1", "--status", "待准备", "--company", "示例公司",
+         "--title", "财务实施顾问", "--store", store, "--log", log],
+    )
+    check(first["code"] == 0 and first["json"]["ok"], "首次登记应成功：%s" % (first["json"] or {}).get("error"))
+    check(first["json"]["audit"]["intent"] and first["json"]["audit"]["committed"], "审计应同时写入 intent 与 committed")
+
+    # 日志路径不可写：必须在改状态之前中止
+    blocker = os.path.join(ctx["tmp"], "blocked_as_file")
+    with open(blocker, "w", encoding="utf-8") as fh:
+        fh.write("not a directory")
+    before_status = load_json(store)["applications"][0]["status"]
+    second = run(
+        "update_application.py",
+        ["--job-id", "job-audit-1", "--status", "待确认", "--store", store,
+         "--log", os.path.join(blocker, "audit.jsonl")],
+    )
+    check(second["code"] == 1, "日志不可写时应返回退出码 1")
+    check(second["json"]["ok"] is False, "日志不可写时 ok 应为 false")
+    check("未做任何修改" in second["json"]["error"], "错误信息应说明状态未被修改")
+    check(load_json(store)["applications"][0]["status"] == before_status, "日志不可写时不得改变业务状态")
+
+    # 悬空事件（只有 intent 没有 committed）应被检测出来
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"at": "2026-10-29T10:00:00+08:00", "phase": "intent",
+                             "event_id": "orphan-001", "job_id": "job-audit-1"}, ensure_ascii=False) + "\n")
+    third = run(
+        "update_application.py",
+        ["--job-id", "job-audit-1", "--status", "待确认", "--store", store, "--log", log],
+    )
+    check(third["code"] == 0, "正常推进应成功：%s" % (third["json"] or {}).get("error"))
+    check(
+        any("orphan-001" in warn for warn in third["json"]["warnings"]),
+        "应告警提示存在未完成的审计事件",
+    )
+
+
+# ---------------------------------------------------------------------------
+# T25 doctor 不得静默降级已登记的外部能力
+# ---------------------------------------------------------------------------
+def t25(ctx):
+    settings_path = os.path.join(ROOT, "config", "settings.json")
+    backup = settings_path + ".t25bak"
+    shutil.copy2(settings_path, backup)
+    try:
+        settings = load_json(settings_path)
+        settings["verified_capabilities"]["browser_exec"] = {
+            "state": "verified",
+            "evidence": "实测：接管已登录标签页读取岗位列表成功",
+            "checked_at": "2026-10-29T15:00:00+08:00",
+        }
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            json.dump(settings, fh, ensure_ascii=False, indent=2)
+
+        proc = run("jobagent.py", ["doctor", "--write"])
+        check(proc["code"] == 0, "doctor --write 应成功：%s" % proc["stderr"][:200])
+        after = load_json(settings_path)["verified_capabilities"]["browser_exec"]
+        check(after["state"] == "verified", "doctor --write 把已登记的 verified 降级为 %s" % after["state"])
+        check(
+            after["evidence"] == "实测：接管已登录标签页读取岗位列表成功",
+            "doctor --write 覆盖了已登记的实测证据",
+        )
+
+        proc = run("jobagent.py", ["doctor", "--write", "--reset-external"])
+        check(proc["code"] == 0, "doctor --reset-external 应成功")
+        reset = load_json(settings_path)["verified_capabilities"]["browser_exec"]
+        check(reset["state"] == "unverified", "显式 --reset-external 后应重置为 unverified")
+    finally:
+        shutil.copy2(backup, settings_path)
+        os.remove(backup)
+
+
+# ---------------------------------------------------------------------------
+# T26 adb 操控链路：用假 adb 桩验证设备选择、UI 解析、文本定位与点击坐标
+# ---------------------------------------------------------------------------
+FAKE_UI_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" text="\u8d22\u52a1\u5b9e\u65bd\u987e\u95ee" resource-id="com.hpbr.bosszhipin:id/job_name"
+          class="android.widget.TextView" clickable="false" enabled="true" bounds="[60,400][700,460]" />
+    <node index="1" text="\u7acb\u5373\u6c9f\u901a" resource-id="com.hpbr.bosszhipin:id/btn"
+          class="android.widget.Button" clickable="true" enabled="true" bounds="[760,2000][1020,2100]" />
+  </node>
+</hierarchy>
+"""
+
+FAKE_ADB_PY = '''import os, sys
+args = sys.argv[1:]
+while args and args[0] in ("-s", "-d", "-e"):
+    args = args[2:] if args[0] == "-s" else args[1:]
+here = os.path.dirname(os.path.abspath(__file__))
+def emit(line=""):
+    print(line)
+if args[:1] == ["devices"]:
+    emit("List of devices attached")
+    emit("FAKESERIAL123          device product:raven model:Pixel_7 device:raven")
+elif args[:1] == ["version"]:
+    emit("Android Debug Bridge version 1.0.41")
+elif args[:3] == ["shell", "wm", "size"]:
+    emit("Physical size: 1080x2400")
+elif args[:2] == ["shell", "getprop"]:
+    emit({"ro.product.model": "Pixel_7", "ro.build.version.release": "14"}.get(args[2], ""))
+elif args[:3] == ["shell", "uiautomator", "dump"]:
+    emit("UI hierchary dumped to: %s" % args[3])
+elif args[:1] == ["pull"]:
+    with open(os.path.join(here, "ui.xml"), "rb") as src, open(args[2], "wb") as dst:
+        dst.write(src.read())
+    emit("1 file pulled.")
+else:
+    emit("")
+'''
+
+
+def _make_fake_adb(tmp):
+    """造一个假 adb：Windows 用 .cmd 包装，其他平台用 .sh，逻辑都在 .py 里。"""
+    directory = os.path.join(tmp, "fakeadb")
+    os.makedirs(directory, exist_ok=True)
+    script = os.path.join(directory, "fake_adb.py")
+    with open(script, "w", encoding="utf-8") as fh:
+        fh.write(FAKE_ADB_PY)
+    with open(os.path.join(directory, "ui.xml"), "w", encoding="utf-8") as fh:
+        fh.write(FAKE_UI_XML)
+    if os.name == "nt":
+        shim = os.path.join(directory, "adb.cmd")
+        with open(shim, "w", encoding="utf-8", newline="\r\n") as fh:
+            fh.write('@echo off\r\n"%s" "%%~dp0fake_adb.py" %%*\r\n' % sys.executable)
+    else:
+        shim = os.path.join(directory, "adb")
+        with open(shim, "w", encoding="utf-8") as fh:
+            fh.write('#!/bin/sh\nexec "%s" "$(dirname "$0")/fake_adb.py" "$@"\n' % sys.executable)
+        os.chmod(shim, 0o755)
+    return shim
+
+
+def t26(ctx):
+    shim = _make_fake_adb(ctx["tmp"])
+    env = {"ADB": shim}
+
+    status = run("adb_ctl.py", ["status"], extra_env=env)
+    check(status["code"] == 0, "假 adb 下 status 应成功：%s" % (status["json"] or {}).get("error"))
+    payload = status["json"]
+    check(payload["model"] == "Pixel_7", "应读出机型，实际 %r" % payload.get("model"))
+    check(payload["screen"]["width"] == 1080 and payload["screen"]["height"] == 2400, "应解析出屏幕分辨率")
+
+    nodes = run("adb_ctl.py", ["dump"], extra_env=env)
+    check(nodes["code"] == 0, "dump 应成功：%s" % (nodes["json"] or {}).get("error"))
+    texts = [node["text"] for node in nodes["json"]["nodes"]]
+    check("立即沟通" in texts, "dump 应解析出中文按钮文本，实际 %r" % texts)
+
+    tap = run("adb_ctl.py", ["tap", "--text", "立即沟通"], extra_env=env)
+    check(tap["code"] == 0, "按文本点击应成功：%s" % (tap["json"] or {}).get("error"))
+    check(tap["json"]["tap"]["x"] == 890 and tap["json"]["tap"]["y"] == 2050,
+          "点击坐标应为元素中心 (890,2050)，实际 %r" % tap["json"]["tap"])
+
+    chinese = run("adb_ctl.py", ["text", "财务"], extra_env=env)
+    check(chinese["code"] == 1, "中文输入必须被拒绝（input text 只支持 ASCII）")
+    check("ASCII" in chinese["json"]["error"], "拒绝原因应说明 ASCII 限制")
+
+    denied = run("adb_ctl.py", ["launch", "--package", "com.hpbr.bosszhipin"], extra_env={})
+    check(denied["code"] == 2, "没有 adb 时应返回环境缺失退出码 2")
+
+
 TESTS = [
     ("T01", "档案字段缺失提示", t01),
     ("T02", "不同链接同一岗位去重", t02),
@@ -651,6 +954,12 @@ TESTS = [
     ("T18", "简历前置与缺口清单", t18),
     ("T19", "搜索画像与通道硬约束", t19),
     ("T20", "搜索计划生成与排除词生效", t20),
+    ("T21", "学历门槛语义不误判", t21),
+    ("T22", "档案校验失败即停止后续", t22),
+    ("T23", "混合单位薪资解析", t23),
+    ("T24", "投递审计一致性", t24),
+    ("T25", "doctor 不降级已验证能力", t25),
+    ("T26", "adb 操控链路（假设备）", t26),
 ]
 
 
@@ -658,6 +967,11 @@ def main():
     # 不用 tempfile.mkdtemp：Windows 下其 0700 目录可能被安全策略拒绝写入。
     tmp = os.path.join(ROOT, ".tests_tmp_%d" % os.getpid())
     shutil.rmtree(tmp, ignore_errors=True)
+    # 兜底清理历史残留：文件被占用时 Windows 的 rmtree 会静默失败，
+    # 只清自己那个目录不够，下次运行前顺手扫一遍。
+    for name in os.listdir(ROOT):
+        if name.startswith(".tests_tmp_") and name != os.path.basename(tmp):
+            shutil.rmtree(os.path.join(ROOT, name), ignore_errors=True)
     os.makedirs(tmp)
     try:
         ctx = {"tmp": tmp}

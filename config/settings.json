@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "note": "非敏感运行配置；不要在此文件写入密码、Cookie 或令牌。",
-  "updated_at": "2026-10-29T13:34:09+08:00",
+  "updated_at": "2026-10-29T16:40:00+08:00",
   "run_mode": "semi_auto",
   "paths": {
     "profile": "profile/profile.json",
@@ -81,10 +81,26 @@
     "mobile": {
       "runtime": "adb",
       "connection": "usb_single_device",
+      "adb_path": "",
       "element_strategy": "uiautomator_before_coordinate",
-      "allow_send_like_actions": false,
+      "allowed_packages": [
+        "com.hpbr.bosszhipin"
+      ],
+      "allowed_packages_note": "包名以 `python scripts/adb_ctl.py packages --search <关键字>` 实测为准；未列入的包不启动。BOSS 直聘包名已确认，其余平台待实测后补。",
+      "action_levels": {
+        "read": true,
+        "navigate": true,
+        "interact": true,
+        "send_like": "confirm_each"
+      },
+      "send_like_policy": "confirm_each",
+      "max_send_actions_per_job": 1,
+      "max_actions_per_session": 10,
+      "min_interval_seconds": 2.5,
+      "allow_bulk_send": false,
       "allow_credential_input": false,
       "chinese_input": "hand_back_to_user",
+      "screenshot_dir": "logs/screens",
       "policy": "skills/job-agent/references/android-adb-policy.md"
     },
     "email": {

@@ -1,14 +1,14 @@
 ---
 name: job-agent
 description: 个人求职流程编排 Skill。以本地个人档案为唯一事实来源，完成岗位搜索与导入、标准化去重、可解释的六维评分、简历/求职信/网申答案草稿与投递状态记录；任何外部写入（投递、发邮件、上传资料）前必须由用户显式确认。当用户提到「求职、找工作、找岗位、搜岗位、有什么新机会、岗位、投递、岗位评估、岗位打分、优先级排序、简历定制、求职信、网申、面试跟进、求职日报、求职周报、Offer 比较」，或提供招聘链接/岗位截图/岗位 JSON 要求分析或导入，或要求查询、更新投递记录时使用。
-version: 0.5.0
+version: 0.6.0
 ---
 
 # job-agent（个人求职流程 Skill）
 
 > **能力边界声明（每次运行先读）**
 >
-> 1. WorkBuddy 的**文件读取、脚本执行、浏览器控制、移动端自动化**能力，在 P0 环境盘点并取得可核验证据之前，一律视为**「未接入」**，不得假设可用。
+> 1. WorkBuddy 的**文件读取、脚本执行、浏览器控制、移动端自动化**能力，在 P0 环境盘点并取得可核验证据之前，一律视&#x4E3A;**「未接入」**，不得假设可用。
 > 2. 能力未接入时，本 Skill 只能输出评分报告、材料草稿和**可复制的人工操作清单**；不得声称已自动投递、已自动填表或已发送邮件。
 > 3. **真实投递、发送邮件、上传个人资料、提交任何声明**都属于外部写入，每一项都必须有独立的**显式确认点**；用户确认前不得执行。
 > 4. 本 Skill 不联网、不绕过验证码、不代替用户保管或填写登录凭据；脚本只做确定性计算，理解、判断与生成由模型完成。
@@ -16,16 +16,16 @@ version: 0.5.0
 
 ## 0. 装载与路径解析（每次运行先做）
 
-本 Skill 只规定**流程与边界**，不携带数据；脚本与数据在 JobAgent 项目目录里。因此第一步永远是**确认项目根**，
+本 Skill 只规定**流程与边界**，不携带数据；脚本与数据在 JobAgent 项目目录里。因此第一步永远是**确认项目根**，  
 否则相对路径会被拼到错误位置，四条命令会整体失败。
 
 ### 0.1 三种部署形态
 
-| 形态 | Skill 位置 | 项目根（脚本 + 数据） | 说明 |
-| --- | --- | --- | --- |
-| 项目内（开发） | `<root>/skills/job-agent/` | 同仓的 `<root>/` | cwd 通常就是项目根 |
-| 装进 WorkBuddy | `~/.workbuddy/skills/job-agent/` | 另需指定 JobAgent 项目目录 | **cwd 不是项目根，必须解析根** |
-| 便携 / 多份副本 | 任意 | 任意盘符 | 用 `JOBAGENT_ROOT` 显式指定，避免歧义 |
+| 形态           | Skill 位置                         | 项目根（脚本 + 数据）       | 说明                          |
+| ------------ | -------------------------------- | ------------------ | --------------------------- |
+| 项目内（开发）      | `<root>/skills/job-agent/`       | 同仓的 `<root>/`      | cwd 通常就是项目根                 |
+| 装进 WorkBuddy | `~/.workbuddy/skills/job-agent/` | 另需指定 JobAgent 项目目录 | **cwd 不是项目根，必须解析根**         |
+| 便携 / 多份副本    | 任意                               | 任意盘符               | 用 `JOBAGENT_ROOT` 显式指定，避免歧义 |
 
 ### 0.2 项目根解析优先级
 
@@ -34,8 +34,8 @@ version: 0.5.0
 3. 从当前工作目录**向上逐级查找**同时含 `config/settings.json` 与 `scripts/` 的目录；
 4. 兜底：`scripts/` 所在目录的上一级。
 
-**执行约定：** 除 `jobagent.py` 外，四个业务脚本都按「项目根相对路径」解析参数。因此调用它们之前
-**必须先 `cd` 到项目根**；若当前目录无法确定，先跑第 2.1 节的解析命令拿到绝对路径，再
+**执行约定：** 除 `jobagent.py` 外，四个业务脚本都按「项目根相对路径」解析参数。因此调用它们之前  
+**必须先 `cd` 到项目根**；若当前目录无法确定，先跑第 2.1 节的解析命令拿到绝对路径，再  
 `cd "$JOBAGENT_ROOT"` 后执行。不要把相对路径命令放在其他目录直接运行。
 
 ### 0.3 装载后的第一条命令（能力与路径自检）
@@ -128,17 +128,17 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor          # 只探测，不写
 python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写回 config/settings.json
 ```
 
-`doctor` 实测文件读、文件写、脚本执行与标准库依赖，按 `state` 三态（`verified` / `unverified` / `unavailable`）输出，
+`doctor` 实测文件读、文件写、脚本执行与标准库依赖，按 `state` 三态（`verified` / `unverified` / `unavailable`）输出，  
 每项带 `evidence` 与 `checked_at`，可直接作为 P0 的可复现证据写进报告。
 
-| 能力 | doctor 判据 | 非 verified 时的降级 |
-| --- | --- | --- |
-| 文件读取 `file_read` | 能否读取 `config/settings.json` | 仅输出人工操作清单 |
-| 文件写入 `file_write` | 能否在 `logs/` 写入并删除探针文件 | 只输出可复制命令，由用户在本机执行 |
-| 脚本执行 `script_exec` | 入口脚本是否真的跑起来了 | 输出命令与预期退出码，用户回填结果 |
-| 标准库自检 `stdlib_only` | `scripts/` 的导入是否全来自标准库 | 提示用户补依赖（本项目预期为空） |
-| 浏览器控制 `browser_exec` | **不由 doctor 判定**，恒为 `unverified` | 不填表、不点提交，输出人工清单 |
-| 移动端/App `mobile_exec` | **不由 doctor 判定**，恒为 `unverified` | 不接入，列入后续阶段 |
+| 能力                    | doctor 判据                        | 非 verified 时的降级   |
+| --------------------- | -------------------------------- | ----------------- |
+| 文件读取 `file_read`      | 能否读取 `config/settings.json`      | 仅输出人工操作清单         |
+| 文件写入 `file_write`     | 能否在 `logs/` 写入并删除探针文件            | 只输出可复制命令，由用户在本机执行 |
+| 脚本执行 `script_exec`    | 入口脚本是否真的跑起来了                     | 输出命令与预期退出码，用户回填结果 |
+| 标准库自检 `stdlib_only`   | `scripts/` 的导入是否全来自标准库           | 提示用户补依赖（本项目预期为空）  |
+| 浏览器控制 `browser_exec`  | **不由 doctor 判定**，恒为 `unverified` | 不填表、不点提交，输出人工清单   |
+| 移动端/App `mobile_exec` | **不由 doctor 判定**，恒为 `unverified` | 不接入，列入后续阶段        |
 
 > 1. 「未接入」不是失败，而是当前运行模式的既定前提；报告中必须显式写明本次运行处于哪种模式，并引用 doctor 的 `checked_at`。
 > 2. **禁止**自行把 `browser_exec` / `mobile_exec` 改成 `verified`——只有用户完成 P4/P5 实测并确认后才可以。
@@ -148,17 +148,17 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写
 
 `references/` 使用相对本 Skill 目录的路径引用，**只在对应步骤开始前加载**，避免无关内容干扰：
 
-| 参考文件 | 何时加载 |
-| --- | --- |
-| `references/profile-schema.md` | 读取、校验、更新个人档案之前；需要解释事实状态时 |
-| `references/job-scoring.md` | 岗位标准化/去重完成、准备评分或解释分数之前 |
-| `references/resume-policy.md` | 生成、修改、导出一份对外的简历/求职信/网申答案之前 |
-| `references/application-workflow.md` | 更新投递状态、登记提交证据、重试或判断重复申请之前 |
-| `references/security-policy.md` | 任何涉及敏感信息、外部写入、日志与平台边界的操作之前 |
-| `references/job-search-policy.md` | **任何岗位搜索之前**：生成搜索计划、抓取列表页、判断用哪条通道（C/B/A）、失败降级 |
-| `references/browser-policy.md` | **任何浏览器操作之前**（P4）：标签页接管、只读抓取、填写、提交确认、截图落盘 |
-| `references/android-adb-policy.md` | **任何手机操作之前**（P5）：设备连接、只读探测、输入与点击、隐私落盘 |
-| `references/email-policy.md` | **任何对外发信之前**：投递邮件、跟进、致谢，含连接器检查与发送确认 |
+| 参考文件                                 | 何时加载                                                            |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `references/profile-schema.md`       | 读取、校验、更新个人档案之前；需要解释事实状态时                                        |
+| `references/job-scoring.md`          | 岗位标准化/去重完成、准备评分或解释分数之前                                          |
+| `references/resume-policy.md`        | 生成、修改、导出一份对外的简历/求职信/网申答案之前                                      |
+| `references/application-workflow.md` | 更新投递状态、登记提交证据、重试或判断重复申请之前                                       |
+| `references/security-policy.md`      | 任何涉及敏感信息、外部写入、日志与平台边界的操作之前                                      |
+| `references/job-search-policy.md`    | **任何岗位搜索之前**：生成搜索计划、抓取列表页、判断用哪条通道（C/B/A）、失败降级                   |
+| `references/browser-policy.md`       | **任何浏览器操作之前**（P4）：标签页接管、只读抓取、填写、提交确认、截图落盘                       |
+| `references/android-adb-policy.md`   | **任何手机操作之前**（P5）：设备连接、动作分级 L0–L3、`adb_ctl.py` 命令、中文输入限制、风控与隐私落盘 |
+| `references/email-policy.md`         | **任何对外发信之前**：投递邮件、跟进、致谢，含连接器检查与发送确认                             |
 
 ### 2.5 配置检查
 
@@ -179,7 +179,7 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写
 
 标准流程固定为九步：**建立基础简历 → 导入岗位 → 标准化 → 去重 → 评分 → 定制材料 → 用户确认 → 执行 → 记录**。不得跳过「用户确认」直接执行，也不得在评分未完成时提前定制材料。
 
-**简历前置**：基础简历是资产，不是「投某个岗位时才做的东西」。第一轮就产出 `resumes/main-resume-v1.0.md`，
+**简历前置**：基础简历是资产，不是「投某个岗位时才做的东西」。第一轮就产出 `resumes/main-resume-v1.0.md`，  
 之后每个岗位只做派生（重排 + 措辞调整），不重复从零起草。详见 `references/resume-policy.md` 第 0 节。
 
 ```
@@ -195,7 +195,7 @@ python "$JOBAGENT_ROOT/scripts/jobagent.py" doctor --write  # 用户确认后写
 - 前置：`python scripts/validate_profile.py --profile profile/profile.json` 通过（退出码 0）。
 - 只使用 `status=confirmed` 的事实；`pending` 一律用 `〔待确认：<字段>〕` 占位，不估算、不编造。
 - 产出 `resumes/main-resume-v1.0.md` + `resumes/main-resume-v1.0.VERSION.md`（结构见 `references/resume-policy.md` 第 0.4 节）。
-- **前置条件不满足时不生成简历**，改为输出「缺口清单」：缺哪些字段、哪些事实还是 `pending`、先补哪项收益最大。
+- **前置条件不满足时不生成简历**，改为输出「缺口清单」：缺哪些字段、哪些事实还是 `pending`、先补哪项收益最大。  
   **不得用占位符堆出一份看起来完整的空简历。**
 - 若当前 `profile.json` 仍是占位示例（`note` 字段标明为虚构数据），必须直接说明「这是示例简历，换成你的真实档案后才有意义」。
 - 完成后必须回答三个问题：这份简历能投什么方向（2–3 个）／最大三个缺口／先补哪个收益最高。
@@ -233,6 +233,9 @@ python scripts/normalize_jobs.py --input jobs/raw/raw_jobs.json --output jobs/jo
 
 ### 步骤 3：去重
 
+|   |   |   |
+| - | - | - |
+
 - 去重与标准化同一次脚本运行完成：`dedupe_key = sha1(归一化 company|title|city)[:10]`；`job_id = "job-" + dedupe_key + "-" + sha1(source_url)[:4]`。同一岗位不同来源链接因此得到不同 `job_id`、相同 `dedupe_key`，可被识别为疑似重复。
 - 检查 `duplicates[]`：重复项不删除，保留来源并在报告中列出「疑似重复 + 各自来源链接」。
 - 同一岗位不同来源链接视为疑似重复；必须由用户决定主记录。
@@ -249,19 +252,21 @@ python scripts/score_jobs.py --jobs jobs/jobs.normalized.json --profile profile/
 - 六维权重：职责匹配 25%、硬性条件 20%、职业发展 20%、个人偏好 15%、薪资条件 10%、信息可信度 10%（详见 `references/job-scoring.md`）。
 - **硬性门槛独立阻断**：硬性条件不满足时 `blocked=true`，状态直接判 `不匹配` 或 `暂缓`，不得被高软性分数掩盖。
 - 未提供薪资、缺少来源链接、要求证书但档案未确认等，写入 `missing_info` / `risk_flags`，不得视为已满足。
-- 分数不是成功率，不得表述为「录取概率」。
+- 分数不是成功率，不得表述为「录取概率」。  
+  |  |  |  |  |  |  
+  | --- | --- | --- | --- | --- |
 - 输出岗位状态仅限：`待评估|优先投递|暂缓|不匹配|已过期`。
 
 ### 步骤 5：定制材料
 
 - 前置：评分完成且用户已选定岗位（默认取 `优先投递`，用户可指定其他）；基础简历 `main-resume-v*` 已存在。
-- **从基础简历派生，不从零起草**：只允许调整经历顺序、增删要点、按 JD 术语改写已有事实的表述、省略无关项。
+- **从基础简历派生，不从零起草**：只允许调整经历顺序、增删要点、按 JD 术语改写已有事实的表述、省略无关项。  
   头部必须写明 `基准主简历版本`。不得新增基础版里没有的事实、不得改动数字。
 - 只使用档案中 `status=confirmed` 的事实；缺失的业绩数字、技能熟练度、证书、时间一律标注「待确认」，不自行补造（详见 `references/resume-policy.md`）。
 - 按 `references/resume-policy.md` 的版本命名规范生成草稿到 `resumes/{job_id}/`，保留版本号、目标岗位、生成日期与变更摘要。
 - 材料草稿必须与岗位对应：每个岗位一个独立版本，不覆盖主简历历史版本。
 - 若档案存在 `pending` 事实：先在草稿中避开或以「待确认」占位，并在报告中列为待确认问题。
-- **若该岗位只留邮箱、需要发邮件投递**：按 `references/email-policy.md` 起草邮件，与简历一并进入步骤 6 确认。
+- **若该岗位只留邮箱、需要发邮件投递**：按 `references/email-policy.md` 起草邮件，与简历一并进入步骤 6 确认。  
   先检查 QQ 邮箱连接器是否已连接；未连接则提示用户打开，**不得改用智能体邮箱代发**。
 
 ### 步骤 6：用户确认（强制门禁）
@@ -274,6 +279,7 @@ python scripts/score_jobs.py --jobs jobs/jobs.normalized.json --profile profile/
   - 能力未接入时，改为输出**可复制的人工操作清单**（见 6.3）。
 - 确认记录写入申请记录 `notes` 并追加审计日志（不含敏感信息）。
 
+
 ### 步骤 7：执行
 
 - 仅当同时满足：① 执行器能力已有 P0 证据；② 目标平台在白名单且规则允许；③ 用户已显式确认。
@@ -283,9 +289,9 @@ python scripts/score_jobs.py --jobs jobs/jobs.normalized.json --profile profile/
   | --- | --- | --- |
   | 企业官网 / 网申表单 | 浏览器（A 路径：接管用户已登录标签页） | 填到提交按钮前，默认停；用户单独授权后可点**一次** |
   | 岗位信息采集 | 浏览器只读 | L0/L1 |
-  | 仅 App 内提供的功能 | 手机只读 + 引导 | L0/L1，**永不代点发送类按钮** |
+  | App 内浏览、检索、进详情、翻页 | 手机 `adb`（`scripts/adb_ctl.py`） | L0–L2，动作间隔 ≥2.5s、单次会话点击 ≤10 |
+  | App 内「打招呼 / 立即沟通 / 投递」 | 手机 `adb` | **L3：逐条确认，每条一次，每岗位上限 1**；批量群发禁止 |
   | 岗位只留邮箱的投递 / 跟进 / 致谢 | 邮件（用户本人邮箱连接器） | 全文展示 + 一次明确确认后可发；同一岗位跟进仅一次 |
-  | App 内即时消息（打招呼、直聊） | 无 | 永远人工，两个执行器都不做 |
 
 - 浏览器端接管标签页前必须复述「我要操作的是：<标题> — <URL>」并得到确认；不得由本 Skill 完成登录（不接触账号密码与令牌）。
 - 执行中只做用户已批准的动作；页面结构变化、出现验证码/登录保护、信息冲突时立即停止并转为 `需人工介入`，**不得换选择器或降级到坐标点击来绕过**。
@@ -374,8 +380,22 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 | 执行器 | 用什么 | 完整规则 |
 | --- | --- | --- |
 | 浏览器 | WorkBuddy 内置浏览器控制（`mcp__browser__*` 工具族）+ `workbuddy-browser-use` Skill | `references/browser-policy.md` |
-| 手机 | `adb`（USB 单设备） | `references/android-adb-policy.md` |
+| 手机 | `adb`（USB 单设备），统一经 `scripts/adb_ctl.py` 调用 | `references/android-adb-policy.md` |
 | 邮件 | **用户本人的邮箱连接器**（QQ 邮箱 `qq-mail`），不用 `agent-mail` | `references/email-policy.md` |
+
+**手机命令契约**（不要直接手写 adb，走封装以继承白名单与隐私规则）：
+
+| 目的 | 命令 |
+| --- | --- |
+| 设备与环境 | `python scripts/adb_ctl.py status` / `devices` |
+| 找包名 | `python scripts/adb_ctl.py packages --search boss` |
+| 启动 App | `python scripts/adb_ctl.py launch --package <包名>` |
+| 读界面 | `python scripts/adb_ctl.py dump [--contains 财务]` |
+| 定位元素 | `python scripts/adb_ctl.py find --text "立即沟通"` |
+| 点击 | `python scripts/adb_ctl.py tap --text "立即沟通"` |
+| 翻页 | `python scripts/adb_ctl.py swipe up` |
+| 连续浏览并记录 | `python scripts/adb_ctl.py browse --rounds 8 --interval 2.5 --out jobs/raw/boss-browse.jsonl` |
+| 截图 | `python scripts/adb_ctl.py screenshot --out logs/screens/<时间>-boss.png` |
 
 禁止为浏览器操作安装 Selenium / Playwright / Puppeteer 等第三方依赖：会破坏「零第三方依赖」承诺，并与本地可移植定位冲突。
 
@@ -390,7 +410,7 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 - [ ] 操作是用户已确认的具体动作，而非「顺便多投几个」。
 - [ ] 具备失败即停的机制：页面结构变化、验证码、登录失效时转为 `需人工介入`，**不重试绕过**。
 
-**手机端的额外硬约束**：禁止点击「发送 / 投递 / 打招呼 / 立即沟通 / 确认」类按钮，禁止输入密码或验证码，需要中文输入时默认交还用户（`adb shell input text` 不支持非 ASCII）。
+**手机端的额外硬约束**：动作分四级 —— L0 读、L1 导航、L2 交互（进详情/翻页/收藏）可直接执行；**L3 发送类（打招呼/立即沟通/投递）必须逐条确认，每条一次、每岗位上限 1 次，禁止批量群发**；禁止输入密码或验证码；需要中文输入时默认交还用户（`adb shell input text` 不支持非 ASCII）；两次动作间隔 ≥2.5 秒，命中风控提示当天停止。
 
 以上任一不满足 → 视为**未接入**，本次不调用。
 
@@ -518,6 +538,7 @@ python scripts/update_application.py --job-id job-6d4169afd8-bb41 --status 已�
 
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
+| 0.6.0 | 2026-10-29 | 手机端从「只读引导」升级为「可控操控」：新增 `scripts/adb_ctl.py`（白名单封装；devices/status/packages/launch/dump/find/tap/swipe/screenshot/text/key/wait/browse；禁 root/remount/tcpip/backup/pm clear/settings put；截图三步法；中文输入直接拒绝）；`android-adb-policy.md` 重写为 L0–L3 动作分级（L3 打招呼逐条确认、每岗位 1 次、禁批量），补 Boss 直聘操作流程与风控频率（≥2.5s、单次 ≤10 次）；`settings.json` 手机配置改为 `send_like_policy=confirm_each`、`allowed_packages`、`max_actions_per_session`；`doctor` 增 adb 实时探测（只补证据不自动升级）；新增 T26（假设备验证 dump/定位/点击链路）；同时修 4 个审计缺陷：学历门槛语义、主流程失败传播、混合单位薪资、投递审计一致性、doctor 降级 |
 | 0.5.0 | 2026-10-29 | 岗位搜索三层落地：新增 `references/job-search-policy.md`（L1 生成计划 / L2 只读抓取 / L3 详情导入；通道顺序 C→B→A；翻页上限、间隔、遇验证码即停、禁调非公开接口）；`browser-policy.md` 补 **C 路径（`WebFetch` 文本只读）**，原「C（禁止）」改为 X；新增 `config/search.json`（城市/关键词组/排除词/平台模板，含各平台实测状态）与 `scripts/search_urls.py`（纯本地生成搜索计划）；入口增 `jobagent.py search`；步骤 1 拆为 1a 发现 / 1b 导入；`settings.json` 增 `executor_policy.search` 与 `trusted_sources_note`；新增 T19/T20，回归 20/20 |
 | 0.1.0 | 2026-10-29 | 首版：覆盖方案 4.2 的 8 个章节，对齐构建契约的字段、脚本与状态机 |
 | 0.4.0 | 2026-10-29 | 简历前置 + 邮件通道：主流程八步改**九步**，新增「步骤 0：建立基础简历」（前置条件不足时输出缺口清单，禁止用占位符堆空简历；定制版必须从基础简历派生）；`resume-policy.md` 增第 0 节（结构模板、分节取舍、与定制版关系、完成必答三问）；新增 `references/email-policy.md`（用户本人 QQ 邮箱连接器 `qq-mail`，禁 `agent-mail` 代发；全文展示 + 一次明确确认；禁批量；同岗位跟进仅一次；收费类招聘不发）；`settings.json` 增 `email_exec` 与 `executor_policy.email`；新增 T17/T18，回归 18/18 |

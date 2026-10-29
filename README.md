@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-18%2F18-brightgreen.svg)](tests/test_cases.md)
+[![Tests](https://img.shields.io/badge/tests-26%2F26-brightgreen.svg)](tests/test_cases.md)
 
 **一个把「求职」变成可复现流程的本地工具包。** 它不替你投简历，也不编造经历——它负责把你散落在各处的
 经历整理成**可追溯的事实档案**，把岗位整理成**可解释的分数**，把每次投递整理成**有证据的记录**，
@@ -39,7 +39,7 @@ cd JobAgent
 python scripts/jobagent.py doctor   # ① 能力与路径自检：应输出 ok=true，能力项 verified
 python scripts/jobagent.py search   # ② 生成搜索计划：关键词×城市×平台的链接，写 jobs/raw/search-plan-*.md
 python scripts/jobagent.py run      # ③ 跑通示例：校验 → 标准化去重 → 评分
-python tests/run_tests.py           # ④ 回归测试：应输出 20 通过 / 0 失败
+python tests/run_tests.py           # ④ 回归测试：应输出 26 通过 / 0 失败
 ```
 
 跑完打开三个文件看结果：
@@ -186,12 +186,12 @@ C 路径是加搜索时补的：它不经过浏览器控制，所以**不受 `br
 | 明确禁止 | Selenium / Playwright / Puppeteer / Pyppeteer / undetected-chromedriver | `adb tcpip`（无线调试）、`adb root`、`pm clear`、`settings put` | 用 `agent-mail` 代发（那是智能体邮箱，HR 联系不到你）、群发、把密码贴进对话 |
 | 定位策略 | DOM 优先于坐标（`dom_cua_*` 优于 `cua_*`） | `uiautomator dump` 优先于 `input tap` | 收件地址逐字符核对（`qq.com` / `qq.con`） |
 | 登录 / 身份 | **由你在浏览器里自己登录**，Skill 只 `tabs_claim` 接管那个标签页，全程不接触账号密码 | 同左，且不代填密码/验证码 | 连接器托管授权，Skill 不接触密码与授权码 |
-| 提交动作 | 填到按钮前停下；你单独授权后才点**一次** | **永不代点**「发送/投递/打招呼/确认」，有不可撤回风险 | 全文展示 + 一次明确许可后才发；同岗位跟进仅一次 |
+| 提交动作 | 填到按钮前停下；你单独授权后才点**一次** | **浏览/进详情/翻页可以直接做**；「打招呼/立即沟通/投递」逐条确认，每条一次、每岗位上限 1 | 全文展示 + 一次明确许可后才发；同岗位跟进仅一次 |
 | 落盘 | 截图只允许 `logs/screens/`（已被 `.gitignore` 排除） | 同上；设备端副本 `pull` 后立即删 | 草稿存 `resumes/{job_id}/email-*.md`，发送记录进 `applications.json` |
 
 **为什么浏览器不自己造一套？** 一是会引入第三方依赖，破坏「clone 后无需 `pip install`」这个承诺；二是自己起浏览器就得自己处理登录，"凭据不经 Skill 之手"这条线立刻守不住。
 
-**为什么手机端比浏览器端更保守？** 网页误点提交通常能撤回或修正，App 里给 HR 发出的消息不可撤回。所以手机端的上限是「只读 + 引导」，不是「辅助投递」。
+**手机端为什么不干脆全自动？** 网页误点提交能撤回，App 里发给 HR 的消息不能。所以分级：**读和导航随便做，发送类逐条确认**。这不是保守，是因为批量打招呼被平台判定为骚扰的速度，比它省下的时间快得多。频率也写死了：动作间隔 ≥2.5 秒、单次会话点击 ≤10 次，命中风控当天停。
 
 **邮件为什么必须用你自己的邮箱？** 用 `agent-mail` 代发，HR 看到的发件人不是你的真实地址，回复也进不了你的邮箱，后续沟通直接断掉。所以邮件通道的第一步永远是「检查 QQ 邮箱连接器是否已连接」，没连接就提示你打开，而不是绕过去。
 
@@ -199,6 +199,32 @@ C 路径是加搜索时补的：它不经过浏览器控制，所以**不受 `br
 
 > 三项能力当前都是 `unverified`：本机没有 adb；浏览器尚未做过「A 路径只读」实测；QQ 邮箱连接器已连上，
 > 但还没实际发出过一封邮件。规范先行，实测通过并登记证据后才置 `verified`。
+
+### 4.3 手机操控：需要先装 adb
+
+脚本层的封装 `scripts/adb_ctl.py` 已经写好，**本机还没有 adb，所以现在只能借假设备跑通逻辑（T26），真机链路没验证过**。
+
+前置条件（都需要你确认后自己动手）：
+
+1. 安装 Android SDK Platform-Tools，把目录加入 `PATH`，或写进 `config/settings.json` 的 `executor_policy.mobile.adb_path`；
+2. 手机开启「开发者选项 → USB 调试」，插线，手机上点「允许」；
+3. `python scripts/adb_ctl.py status` 应输出机型与分辨率。
+
+装好后能用的动作：
+
+```bash
+python scripts/adb_ctl.py status                    # 设备、机型、分辨率
+python scripts/adb_ctl.py packages --search boss    # 查包名（别靠猜）
+python scripts/adb_ctl.py launch --package com.hpbr.bosszhipin
+python scripts/adb_ctl.py dump
+python scripts/adb_ctl.py tap --text "立即沟通"      # L3，需逐条确认
+python scripts/adb_ctl.py browse --rounds 8 --interval 2.5 --out jobs/raw/boss-browse.jsonl
+python scripts/adb_ctl.py screenshot --out logs/screens/boss-01.png
+```
+
+`browse` 是「刷」的骨架：连续下滑、只记录每屏文本、不点任何按钮，产出 JSONL 交给 Skill 解析成岗位卡片。
+
+脚本层面拒绝执行的东西：`root`、`remount`、`tcpip`（无线调试会把 5555 暴露到局域网）、`backup`、`pm clear`、`settings put`。不是写在文档里靠自觉，是**没有入口**。
 
 ---
 
@@ -236,11 +262,12 @@ JobAgent/
 │   ├── common.py              #   公共工具（含项目根解析 find_root）
 │   ├── validate_profile.py    #   档案校验
 │   ├── search_urls.py         #   岗位搜索计划生成（L1，纯本地不联网）
+│   ├── adb_ctl.py             #   手机操控封装（L0–L3，白名单 adb）
 │   ├── normalize_jobs.py      #   岗位标准化 + 去重
 │   ├── score_jobs.py          #   六维规则评分 + 硬性阻断
 │   └── update_application.py  #   投递状态机（唯一写入口）
 └── tests/
-    ├── run_tests.py           # T01–T20 回归测试
+    ├── run_tests.py           # T01–T26 回归测试
     ├── sample_profile.json    # 测试固定档案
     ├── sample_jobs.json       # 测试固定岗位
     └── test_cases.md          # 用例说明
@@ -274,8 +301,9 @@ JobAgent/
 ## 7. 常见问题
 
 **Q：为什么不直接把简历也自动生成、自动投？**
-A：自动投递的失败成本是「投错一家公司」，而招聘平台的条款通常禁止自动化提交。本项目把
-「理解与生成」交给模型、「执行」留给你，P4/P5 阶段也只做到「辅助填表 + 提交前确认」（手机端连提交都不做）。
+A：自动投递的失败成本是「投错一家公司」，且平台条款通常禁止自动化提交。所以边界画在「动作分级」上：
+浏览器填表可以，点提交要你单独授权且只点一次；手机浏览、进详情、翻页随便做，
+「打招呼/立即沟通」逐条确认、每岗位上限 1 次、禁批量。「理解与生成」全交给模型，「最后一击」留给你。
 
 **Q：评分准吗？**
 A：不准，而且本来就不该准。它是**规则启发式**：技能匹配按关键词命中比例算，权重与阈值需要你按真实
@@ -296,6 +324,11 @@ A：不会。搜索只负责把岗位**带进来**（写 `jobs/raw/`），判断
 A：脚本没有任何网络库调用（`tests/run_tests.py` T12 静态检查这一点）；日志与 `.bak` 都在 `.gitignore` 里。
 搜索时读取的是公开页面，不会把你的档案或投递记录发给任何平台。
 
+**Q：手机能自动帮我刷 Boss 直聘吗？**
+A：能刷，但分动作。浏览列表、进详情、翻页、截图记录都可以自动做（`adb_ctl.py browse/dump/tap`）；
+「打招呼/立即沟通」属于发送类，逐条确认、每岗位一次。「刷」省的是翻页和筛选的时间，不是替你决定投谁。
+另外中文关键词没法用 `adb shell input text` 打进去（只支持 ASCII），搜索词要么你手动输入，要么用平台筛选器。
+
 **Q：能只跑其中一步吗？**
 A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起来并汇总退出码。
 
@@ -307,10 +340,10 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 | --- | --- | --- |
 | P0 环境盘点 | ✅ 已可自动化 | `jobagent.py doctor` 实测并写出能力矩阵（T13 覆盖） |
 | P1 MVP 数据层 | ✅ 已完成 | 档案 / 岗位 / 投递模板 + `schema_version` + 校验脚本 |
-| P2 Skill v0.5 | ✅ 已完成 | `SKILL.md` 十章 + 9 份 references，含装载与根解析、搜索策略、两套执行器规范 |
-| P3 质量测试 | ✅ 已完成 | T01–T20，20/20 通过 |
+| P2 Skill v0.6 | ✅ 已完成 | `SKILL.md` 十章 + 9 份 references，含装载与根解析、搜索策略、浏览器/手机/邮件三套执行器规范 |
+| P3 质量测试 | ✅ 已完成 | T01–T26，26/26 通过 |
 | P4 浏览器辅助 | 📋 规范已定，待实测 | [`browser-policy.md`](skills/job-agent/references/browser-policy.md) 就绪；需先通过「A 路径只读」实测，再验证填表，最后才是提交前确认 |
-| P5 手机接入 | 📋 规范已定，待设备 | [`android-adb-policy.md`](skills/job-agent/references/android-adb-policy.md) 就绪；本机尚无 adb，接入设备后先做只读闭环 |
+| P5 手机操控 | 📋 脚本就绪，待设备 | [`adb_ctl.py`](scripts/adb_ctl.py) 已实现并能通过假设备测试；本机尚无 adb，装 platform-tools 后做读闭环 + 点闭环 |
 | P6 常驻与扩展 | ⏳ 未开始 | 定时运行 / 服务器 / 仪表盘 |
 
 ## 9. 已知限制
@@ -326,6 +359,10 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 - **抓取能力取决于平台渲染方式**：服务端渲染的能直接读，纯前端渲染的需要浏览器 DOM。不是「有搜索功能就能搜所有平台」。
 - **搜索来源的可信度天然低一档**：`campus_vertical_search` 刻意不在 `trusted_sources` 里，所以同一岗位
   官网直招那条的评分会更高。这不是 bug，是刻意让「官网可核实」比「聚合站转发」优先。
+- **手机操控未经真机验证**：`adb_ctl.py` 的逻辑用假设备桩跑通（T26），但本机没有 adb，真机链路、
+  机型差异、App 版本差异都没验证。真机上第一次运行请从 `status` → `dump` 逐步确认，别直接批量点。
+- **手机 UI 树不稳**：App 一更新 `resource-id` 就可能变，`tap --text` 也比网页脆弱；连续两次定位失败即停，不硬试。
+- **自动化有账号风险**：平台可能判定异常操作。规范写死了频率与上限，但这只是降低概率，不是消除风险。
 
 ## 10. 安全边界
 
@@ -340,7 +377,7 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 
 | 有 | 说明 |
 | --- | --- |
-| `scripts/` 六个脚本 + `tests/` 20 项回归 | 纯标准库，clone 后**无需安装依赖** |
+| `scripts/` 七个脚本 + `tests/` 26 项回归 | 纯标准库，clone 后**无需安装依赖** |
 | `skills/job-agent/` | 可直接复制进 WorkBuddy 的 Skill 目录 |
 | `docs/` 设计文档 | 《开发方案 V1.0》，13 章设计与分阶段路线 |
 | 示例数据与示例报告 | 全部虚构占位（`示例*` / `example-*` 域名），可安全浏览 |
@@ -351,7 +388,7 @@ A：能，见第 2 节的四段命令；`jobagent.py run` 只是把它们串起�
 | 真实岗位数据 | 按 `jobs/raw/raw_jobs.json` 字段自行录入 |
 | 简历成品（PDF/DOCX） | 按 `references/resume-policy.md` 生成，不入库 |
 | 审计日志 | 首次 `update_application.py` 运行时自动创建 |
-| 浏览器 / 手机执行器 | P4/P5 工作，尚未实现 |
+| 浏览器执行器 | P4 工作，尚未实测（手机执行器脚本已实现） |
 
 ## 12. 许可证与归属
 
