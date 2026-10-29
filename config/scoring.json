@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "version": "1.0.0",
+  "updated_at": "2026-10-29T12:30:00+08:00",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-10-29",
+      "note": "初始权重：职责匹配25 / 硬性条件20 / 职业发展20 / 个人偏好15 / 薪资条件10 / 信息可信度10"
+    }
+  ],
+  "weights": {
+    "responsibilities_match": 0.25,
+    "hard_requirements": 0.2,
+    "career_value": 0.2,
+    "preference_fit": 0.15,
+    "compensation": 0.1,
+    "source_credibility": 0.1
+  },
+  "dimension_labels": {
+    "responsibilities_match": "岗位职责匹配",
+    "hard_requirements": "硬性条件符合度",
+    "career_value": "职业发展价值",
+    "preference_fit": "个人偏好符合度",
+    "compensation": "薪资与资源条件",
+    "source_credibility": "招聘信息可信度"
+  },
+  "degree_rank": {
+    "不限": 0,
+    "大专": 1,
+    "本科": 2,
+    "硕士": 3,
+    "博士": 4
+  },
+  "thresholds": {
+    "priority": 78,
+    "consider": 60,
+    "blocked_status": "不匹配"
+  },
+  "defaults": {
+    "unknown_salary_score": 50,
+    "unknown_source_score": 40,
+    "unknown_preference_score": 50
+  },
+  "notes": [
+    "权重是初始假设，必须按用户反馈调整；每次调整都要追加 changelog。",
+    "硬性门槛独立阻断，总分不得掩盖阻断结论。",
+    "match_score 是可解释的匹配度，不是录取概率。"
+  ]
+}

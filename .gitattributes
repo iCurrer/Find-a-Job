@@ -1,0 +1,20 @@
+* text=auto eol=lf
+
+# Windows 脚本必须保留 CRLF，cmd.exe 对纯 LF 解析不可靠
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+
+# 文档类不计入主要语言统计
+docs/** linguist-documentation
+skill/** linguist-documentation
+reports/** linguist-documentation
+tests/test_cases.md linguist-documentation

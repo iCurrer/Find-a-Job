@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "test-001",
+  "updated_at": "2026-10-29T10:00:00+08:00",
+  "note": "测试固定档案：只用于 tests/run_tests.py，不代表真实用户。",
+  "basics": {
+    "name": "测试同学",
+    "phone": "139-0000-0000",
+    "email": "test@example.com",
+    "city": "上海"
+  },
+  "education": [
+    {
+      "id": "edu-001",
+      "school": "测试大学",
+      "major": "计算机科学与技术",
+      "degree": "本科",
+      "start": "2023-09",
+      "end": "2027-06",
+      "status": "confirmed"
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp-001",
+      "kind": "internship",
+      "org": "测试电商公司",
+      "role": "数据分析实习生",
+      "start": "2026-07",
+      "end": "2026-09",
+      "highlights": ["用 SQL 与 Excel 输出周报"],
+      "status": "confirmed"
+    }
+  ],
+  "skills": [
+    {"name": "Python", "level": "熟练", "evidence": "实习使用", "status": "confirmed"},
+    {"name": "SQL", "level": "使用过", "evidence": "实习使用", "status": "confirmed"},
+    {"name": "Excel", "level": "熟练", "evidence": "实习周报", "status": "confirmed"}
+  ],
+  "certifications": [
+    {"name": "CET-6", "state": "已取得", "date": "2025-12", "status": "confirmed"},
+    {"name": "教师资格证", "state": "备考中", "date": "", "status": "pending"}
+  ],
+  "preferences": {
+    "cities": ["上海"],
+    "salary_min": 6000,
+    "salary_period": "month",
+    "job_types": ["实习", "校招"],
+    "industries": ["互联网", "电商"],
+    "work_modes": ["onsite"]
+  },
+  "career_goals": {
+    "short_term": "数据分析方向实习",
+    "long_term": "商业分析"
+  },
+  "constraints": {"max_commute_minutes": 60, "unacceptable": ["纯销售岗"]},
+  "facts_sources": [
+    {
+      "fact_id": "fact-001",
+      "fact": "测试大学 计算机科学与技术 本科 2027-06 毕业",
+      "source": "测试夹具",
+      "confirmed_by": "user",
+      "confirmed_at": "2026-10-28T20:00:00+08:00"
+    }
+  ],
+  "open_questions": ["教师资格证成绩待确认"]
+}

@@ -1,0 +1,706 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-10-29T12:47:37+08:00",
+  "generated_by": "scripts/score_jobs.py",
+  "config_version": "1.0.0",
+  "counts": {
+    "total": 6,
+    "evaluated": 5,
+    "skipped_duplicates": 1
+  },
+  "jobs": [
+    {
+      "job_id": "job-6d4169afd8-bb41",
+      "dedupe_key": "6d4169afd8",
+      "source": "company_career_site",
+      "source_url": "https://careers.example-tech.com/jobs/data-intern-001",
+      "company": "示例科技(上海)有限公司",
+      "title": "数据分析实习生",
+      "location": "上海·徐汇区",
+      "city": "上海",
+      "industry": "",
+      "job_type": "",
+      "requirements": "本科及以上在读，2027届优先\n熟悉 SQL 与 Excel，能用 Python 处理数据\n每周到岗不少于 4 天，实习期 3 个月以上",
+      "responsibilities": "1. 协助完成业务数据提取与清洗；2. 输出周度经营分析报表；3. 参与专题分析并给出结论",
+      "degree": "",
+      "experience": "",
+      "language_requirements": "",
+      "posted_at": "2026-10-27",
+      "collected_at": "2026-10-29T09:00:00+08:00",
+      "status": "优先投递",
+      "risk_flags": [],
+      "missing_info": [],
+      "is_duplicate": false,
+      "duplicate_of": null,
+      "raw_text": "数据分析实习生\n示例科技(上海)有限公司\n上海·徐汇区\n本科及以上在读，2027届优先\n熟悉 SQL 与 Excel，能用 Python 处理数据\n每周到岗不少于 4 天，实习期 3 个月以上\n1. 协助完成业务数据提取与清洗；2. 输出周度经营分析报表；3. 参与专题分析并给出结论",
+      "salary_text": "200元/天",
+      "salary_min": 200,
+      "salary_max": 200,
+      "salary_period": "day",
+      "salary_month_equivalent": {
+        "min": 4200,
+        "max": 4200,
+        "basis": "按每月 21 个工作日折算"
+      },
+      "match_score": 87,
+      "score_breakdown": [
+        {
+          "key": "responsibilities_match",
+          "label": "岗位职责匹配",
+          "score": 67,
+          "weight": 0.25,
+          "weighted": 16.8,
+          "reasons": [
+            "档案关键词 6 个，岗位描述命中 4 个（67%）"
+          ],
+          "evidence": [
+            "Python",
+            "SQL",
+            "Excel",
+            "数据分析实习生"
+          ],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "hard_requirements",
+          "label": "硬性条件符合度",
+          "score": 100,
+          "weight": 0.2,
+          "weighted": 20.0,
+          "reasons": [
+            "学历要求 本科，档案为 本科，满足"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "career_value",
+          "label": "职业发展价值",
+          "score": 100,
+          "weight": 0.2,
+          "weighted": 20.0,
+          "reasons": [
+            "与职业目标方向重合：数据分析",
+            "行业与偏好重合：科技"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "preference_fit",
+          "label": "个人偏好符合度",
+          "score": 95,
+          "weight": 0.15,
+          "weighted": 14.2,
+          "reasons": [
+            "城市符合偏好（上海）",
+            "岗位类型符合偏好"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "compensation",
+          "label": "薪资与资源条件",
+          "score": 60,
+          "weight": 0.1,
+          "weighted": 6.0,
+          "reasons": [
+            "明显低于薪资底线（约 70%）：岗位约 4200 元/月，底线约 6000 元/月"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "source_credibility",
+          "label": "招聘信息可信度",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "来源为可信渠道（company_career_site）且带原始链接"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        }
+      ],
+      "top_reasons": [
+        "硬性条件符合度：学历要求 本科，档案为 本科，满足",
+        "职业发展价值：与职业目标方向重合：数据分析",
+        "职业发展价值：行业与偏好重合：科技"
+      ],
+      "blocked": false,
+      "evaluated": true,
+      "scored_at": "2026-10-29T12:47:37+08:00"
+    },
+    {
+      "job_id": "job-3328bafe3a-6987",
+      "dedupe_key": "3328bafe3a",
+      "source": "official_job_board",
+      "source_url": "https://jobs.example-mall.com/p/oper-intern-88",
+      "company": "示例电商公司",
+      "title": "产品运营实习生",
+      "location": "上海市浦东新区",
+      "city": "上海",
+      "industry": "",
+      "job_type": "",
+      "requirements": "本科在读\n有活动运营或内容运营经验优先\n熟悉 Excel，会基础数据分析",
+      "responsibilities": "负责活动方案执行、用户反馈整理与运营数据日报。",
+      "degree": "",
+      "experience": "",
+      "language_requirements": "",
+      "posted_at": "2026-10-26",
+      "collected_at": "2026-10-29T09:05:00+08:00",
+      "status": "待评估",
+      "risk_flags": [
+        "薪资明显低于底线，需确认是否接受"
+      ],
+      "missing_info": [],
+      "is_duplicate": false,
+      "duplicate_of": null,
+      "raw_text": "产品运营实习生\n示例电商公司\n上海市浦东新区\n本科在读\n有活动运营或内容运营经验优先\n熟悉 Excel，会基础数据分析\n负责活动方案执行、用户反馈整理与运营数据日报。",
+      "salary_text": "150-200元/天",
+      "salary_min": 150,
+      "salary_max": 200,
+      "salary_period": "day",
+      "salary_month_equivalent": {
+        "min": 3150,
+        "max": 4200,
+        "basis": "按每月 21 个工作日折算"
+      },
+      "match_score": 73,
+      "score_breakdown": [
+        {
+          "key": "responsibilities_match",
+          "label": "岗位职责匹配",
+          "score": 20,
+          "weight": 0.25,
+          "weighted": 5.0,
+          "reasons": [
+            "档案关键词 6 个，岗位描述命中 1 个（17%）"
+          ],
+          "evidence": [
+            "Excel"
+          ],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "hard_requirements",
+          "label": "硬性条件符合度",
+          "score": 100,
+          "weight": 0.2,
+          "weighted": 20.0,
+          "reasons": [
+            "学历要求 本科，档案为 本科，满足"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "career_value",
+          "label": "职业发展价值",
+          "score": 100,
+          "weight": 0.2,
+          "weighted": 20.0,
+          "reasons": [
+            "与职业目标方向重合：数据分析、产品运营、运营",
+            "行业与偏好重合：电商"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "preference_fit",
+          "label": "个人偏好符合度",
+          "score": 95,
+          "weight": 0.15,
+          "weighted": 14.2,
+          "reasons": [
+            "城市符合偏好（上海）",
+            "岗位类型符合偏好"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "compensation",
+          "label": "薪资与资源条件",
+          "score": 40,
+          "weight": 0.1,
+          "weighted": 4.0,
+          "reasons": [
+            "远低于薪资底线（约 52%）：岗位约 3150 元/月，底线约 6000 元/月"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": [
+            "薪资明显低于底线，需确认是否接受"
+          ]
+        },
+        {
+          "key": "source_credibility",
+          "label": "招聘信息可信度",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "来源为可信渠道（official_job_board）且带原始链接"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        }
+      ],
+      "top_reasons": [
+        "硬性条件符合度：学历要求 本科，档案为 本科，满足",
+        "职业发展价值：与职业目标方向重合：数据分析、产品运营、运营",
+        "职业发展价值：行业与偏好重合：电商"
+      ],
+      "blocked": false,
+      "evaluated": true,
+      "scored_at": "2026-10-29T12:47:37+08:00"
+    },
+    {
+      "job_id": "job-6716c6394a-7bc1",
+      "dedupe_key": "6716c6394a",
+      "source": "official_job_board",
+      "source_url": "https://careers.example-data.com/job/dev-intern-77",
+      "company": "示例数据科技有限公司",
+      "title": "数据开发实习生",
+      "location": "杭州·西湖区",
+      "city": "杭州",
+      "industry": "",
+      "job_type": "",
+      "requirements": "本科及以上\n熟悉 SQL、Python，了解数据仓库基础\n实习期 6 个月",
+      "responsibilities": "参与数据管道开发与数据质量校验。",
+      "degree": "",
+      "experience": "",
+      "language_requirements": "",
+      "posted_at": "2026-10-25",
+      "collected_at": "2026-10-29T09:10:00+08:00",
+      "status": "待评估",
+      "risk_flags": [
+        "工作地点与偏好不一致，需确认是否接受"
+      ],
+      "missing_info": [],
+      "is_duplicate": false,
+      "duplicate_of": null,
+      "raw_text": "数据开发实习生\n示例数据科技有限公司\n杭州·西湖区\n本科及以上\n熟悉 SQL、Python，了解数据仓库基础\n实习期 6 个月\n参与数据管道开发与数据质量校验。",
+      "salary_text": "6-8K",
+      "salary_min": 6000,
+      "salary_max": 8000,
+      "salary_period": "month",
+      "salary_month_equivalent": {
+        "min": 6000,
+        "max": 8000,
+        "basis": "按月折算"
+      },
+      "match_score": 70,
+      "score_breakdown": [
+        {
+          "key": "responsibilities_match",
+          "label": "岗位职责匹配",
+          "score": 33,
+          "weight": 0.25,
+          "weighted": 8.2,
+          "reasons": [
+            "档案关键词 6 个，岗位描述命中 2 个（33%）"
+          ],
+          "evidence": [
+            "Python",
+            "SQL"
+          ],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "hard_requirements",
+          "label": "硬性条件符合度",
+          "score": 100,
+          "weight": 0.2,
+          "weighted": 20.0,
+          "reasons": [
+            "学历要求 本科，档案为 本科，满足"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "career_value",
+          "label": "职业发展价值",
+          "score": 70,
+          "weight": 0.2,
+          "weighted": 14.0,
+          "reasons": [
+            "行业与偏好重合：科技",
+            "岗位方向与职业目标关键词无直接重合"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "preference_fit",
+          "label": "个人偏好符合度",
+          "score": 50,
+          "weight": 0.15,
+          "weighted": 7.5,
+          "reasons": [
+            "城市不符合偏好：期望 上海，岗位 杭州",
+            "岗位类型符合偏好"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": [
+            "工作地点与偏好不一致，需确认是否接受"
+          ]
+        },
+        {
+          "key": "compensation",
+          "label": "薪资与资源条件",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "达到或超过薪资底线：岗位约 6000 元/月，底线约 6000 元/月"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "source_credibility",
+          "label": "招聘信息可信度",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "来源为可信渠道（official_job_board）且带原始链接"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        }
+      ],
+      "top_reasons": [
+        "硬性条件符合度：学历要求 本科，档案为 本科，满足",
+        "职业发展价值：行业与偏好重合：科技",
+        "职业发展价值：岗位方向与职业目标关键词无直接重合"
+      ],
+      "blocked": false,
+      "evaluated": true,
+      "scored_at": "2026-10-29T12:47:37+08:00"
+    },
+    {
+      "job_id": "job-38ecf4e2a4-b341",
+      "dedupe_key": "38ecf4e2a4",
+      "source": "company_career_site",
+      "source_url": "https://careers.example-ai.com/jobs/algo-intern-12",
+      "company": "示例智能科技有限公司",
+      "title": "算法实习生",
+      "location": "上海·杨浦区",
+      "city": "上海",
+      "industry": "",
+      "job_type": "",
+      "requirements": "硕士及以上学历，计算机相关专业\n熟悉机器学习基础，有论文或竞赛经历优先",
+      "responsibilities": "参与推荐算法实验与效果评估。",
+      "degree": "",
+      "experience": "",
+      "language_requirements": "",
+      "posted_at": "2026-10-24",
+      "collected_at": "2026-10-29T09:15:00+08:00",
+      "status": "不匹配",
+      "risk_flags": [
+        "薪资未知，投递前需向招聘方确认"
+      ],
+      "missing_info": [
+        "薪资信息缺失，无法判断是否达到底线",
+        "薪资未标注或无法解析，薪资维度只能给默认分"
+      ],
+      "is_duplicate": false,
+      "duplicate_of": null,
+      "raw_text": "算法实习生\n示例智能科技有限公司\n上海·杨浦区\n硕士及以上学历，计算机相关专业\n熟悉机器学习基础，有论文或竞赛经历优先\n参与推荐算法实验与效果评估。",
+      "salary_text": "面议",
+      "salary_unparsed": true,
+      "match_score": 43,
+      "score_breakdown": [
+        {
+          "key": "responsibilities_match",
+          "label": "岗位职责匹配",
+          "score": 0,
+          "weight": 0.25,
+          "weighted": 0.0,
+          "reasons": [
+            "档案关键词 6 个，岗位描述命中 0 个（0%）",
+            "岗位描述未命中任何已确认技能，职责相关性低"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "hard_requirements",
+          "label": "硬性条件符合度",
+          "score": 0,
+          "weight": 0.2,
+          "weighted": 0.0,
+          "reasons": [
+            "学历要求 硕士，档案最高为 本科：硬性不满足，总分不改变该结论"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "career_value",
+          "label": "职业发展价值",
+          "score": 70,
+          "weight": 0.2,
+          "weighted": 14.0,
+          "reasons": [
+            "行业与偏好重合：科技",
+            "岗位方向与职业目标关键词无直接重合"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "preference_fit",
+          "label": "个人偏好符合度",
+          "score": 95,
+          "weight": 0.15,
+          "weighted": 14.2,
+          "reasons": [
+            "城市符合偏好（上海）",
+            "岗位类型符合偏好"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "compensation",
+          "label": "薪资与资源条件",
+          "score": 50,
+          "weight": 0.1,
+          "weighted": 5.0,
+          "reasons": [
+            "薪资未标注或无法解析，按默认分处理"
+          ],
+          "evidence": [],
+          "missing_info": [
+            "薪资信息缺失，无法判断是否达到底线"
+          ],
+          "risks": [
+            "薪资未知，投递前需向招聘方确认"
+          ]
+        },
+        {
+          "key": "source_credibility",
+          "label": "招聘信息可信度",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "来源为可信渠道（company_career_site）且带原始链接"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        }
+      ],
+      "top_reasons": [
+        "硬性阻断：学历要求 硕士，档案最高为 本科：硬性不满足，总分不改变该结论",
+        "个人偏好符合度：城市符合偏好（上海）",
+        "个人偏好符合度：岗位类型符合偏好"
+      ],
+      "blocked": true,
+      "evaluated": true,
+      "scored_at": "2026-10-29T12:47:37+08:00"
+    },
+    {
+      "job_id": "job-4f81f6a9ed-bd01",
+      "dedupe_key": "4f81f6a9ed",
+      "source": "official_job_board",
+      "source_url": "https://jobs.example-media.com/mkt-2026",
+      "company": "示例传媒有限公司",
+      "title": "市场专员(全职)",
+      "location": "上海·静安区",
+      "city": "上海",
+      "industry": "",
+      "job_type": "",
+      "requirements": "本科及以上\n1-3 年市场推广经验\n能独立策划线下活动",
+      "responsibilities": "负责品牌活动策划、渠道投放与效果复盘。",
+      "degree": "",
+      "experience": "",
+      "language_requirements": "",
+      "posted_at": "2026-10-20",
+      "collected_at": "2026-10-29T09:20:00+08:00",
+      "status": "暂缓",
+      "risk_flags": [
+        "经验门槛为 1 年以上，档案仅有实习/项目经历，需确认是否符合"
+      ],
+      "missing_info": [
+        "岗位要求 1 年以上经验，档案未确认全职经验",
+        "岗位行业未标注或与偏好行业不同"
+      ],
+      "is_duplicate": false,
+      "duplicate_of": null,
+      "raw_text": "市场专员(全职)\n示例传媒有限公司\n上海·静安区\n本科及以上\n1-3 年市场推广经验\n能独立策划线下活动\n负责品牌活动策划、渠道投放与效果复盘。",
+      "salary_text": "8-10K",
+      "salary_min": 8000,
+      "salary_max": 10000,
+      "salary_period": "month",
+      "salary_month_equivalent": {
+        "min": 8000,
+        "max": 10000,
+        "basis": "按月折算"
+      },
+      "match_score": 54,
+      "score_breakdown": [
+        {
+          "key": "responsibilities_match",
+          "label": "岗位职责匹配",
+          "score": 0,
+          "weight": 0.25,
+          "weighted": 0.0,
+          "reasons": [
+            "档案关键词 6 个，岗位描述命中 0 个（0%）",
+            "岗位描述未命中任何已确认技能，职责相关性低"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "hard_requirements",
+          "label": "硬性条件符合度",
+          "score": 80,
+          "weight": 0.2,
+          "weighted": 16.0,
+          "reasons": [
+            "学历要求 本科，档案为 本科，满足"
+          ],
+          "evidence": [],
+          "missing_info": [
+            "岗位要求 1 年以上经验，档案未确认全职经验"
+          ],
+          "risks": [
+            "经验门槛为 1 年以上，档案仅有实习/项目经历，需确认是否符合"
+          ]
+        },
+        {
+          "key": "career_value",
+          "label": "职业发展价值",
+          "score": 40,
+          "weight": 0.2,
+          "weighted": 8.0,
+          "reasons": [
+            "岗位方向与职业目标关键词无直接重合"
+          ],
+          "evidence": [],
+          "missing_info": [
+            "岗位行业未标注或与偏好行业不同"
+          ],
+          "risks": []
+        },
+        {
+          "key": "preference_fit",
+          "label": "个人偏好符合度",
+          "score": 70,
+          "weight": 0.15,
+          "weighted": 10.5,
+          "reasons": [
+            "城市符合偏好（上海）",
+            "岗位类型与偏好不同"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "compensation",
+          "label": "薪资与资源条件",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "达到或超过薪资底线：岗位约 8000 元/月，底线约 6000 元/月"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        },
+        {
+          "key": "source_credibility",
+          "label": "招聘信息可信度",
+          "score": 100,
+          "weight": 0.1,
+          "weighted": 10.0,
+          "reasons": [
+            "来源为可信渠道（official_job_board）且带原始链接"
+          ],
+          "evidence": [],
+          "missing_info": [],
+          "risks": []
+        }
+      ],
+      "top_reasons": [
+        "硬性条件符合度：学历要求 本科，档案为 本科，满足",
+        "个人偏好符合度：城市符合偏好（上海）",
+        "个人偏好符合度：岗位类型与偏好不同"
+      ],
+      "blocked": false,
+      "evaluated": true,
+      "scored_at": "2026-10-29T12:47:37+08:00"
+    },
+    {
+      "job_id": "job-6d4169afd8-43eb",
+      "dedupe_key": "6d4169afd8",
+      "source": "manual_import",
+      "source_url": "https://aggregator.example-jobs.cn/view/9f2c1a",
+      "company": "示例科技(上海)有限公司",
+      "title": "数据分析实习生",
+      "location": "上海",
+      "city": "上海",
+      "industry": "",
+      "job_type": "",
+      "requirements": "本科及以上在读\n熟悉 SQL 与 Excel",
+      "responsibilities": "数据提取、清洗与报表输出（与官网岗位为同一职位，来自聚合站转载）。",
+      "degree": "",
+      "experience": "",
+      "language_requirements": "",
+      "posted_at": "2026-10-27",
+      "collected_at": "2026-10-29T09:25:00+08:00",
+      "status": "待评估",
+      "risk_flags": [],
+      "missing_info": [],
+      "is_duplicate": true,
+      "duplicate_of": "job-6d4169afd8-bb41",
+      "raw_text": "数据分析实习生\n示例科技(上海)有限公司\n上海\n本科及以上在读\n熟悉 SQL 与 Excel\n数据提取、清洗与报表输出（与官网岗位为同一职位，来自聚合站转载）。",
+      "salary_text": "200元/天",
+      "salary_min": 200,
+      "salary_max": 200,
+      "salary_period": "day",
+      "salary_month_equivalent": {
+        "min": 4200,
+        "max": 4200,
+        "basis": "按每月 21 个工作日折算"
+      },
+      "evaluated": false,
+      "skip_reason": "与 job-6d4169afd8-bb41 疑似重复，默认不评分"
+    }
+  ]
+}

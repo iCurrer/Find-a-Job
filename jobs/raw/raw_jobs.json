@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0",
+  "note": "原始岗位数据：采集或手输后原样保存，只增不改。字段允许缺失，缺失项由 normalize_jobs.py 标记风险。",
+  "collected_at": "2026-10-29T09:00:00+08:00",
+  "jobs": [
+    {
+      "company": "示例科技（上海）有限公司",
+      "title": "数据分析实习生",
+      "location": "上海·徐汇区",
+      "salary": "200元/天",
+      "url": "https://careers.example-tech.com/jobs/data-intern-001",
+      "source": "company_career_site",
+      "requirements": [
+        "本科及以上在读，2027届优先",
+        "熟悉 SQL 与 Excel，能用 Python 处理数据",
+        "每周到岗不少于 4 天，实习期 3 个月以上"
+      ],
+      "responsibilities": "1. 协助完成业务数据提取与清洗；2. 输出周度经营分析报表；3. 参与专题分析并给出结论",
+      "posted_at": "2026-10-27",
+      "collected_at": "2026-10-29T09:00:00+08:00"
+    },
+    {
+      "company": "示例电商公司",
+      "title": "产品运营实习生",
+      "location": "上海市浦东新区",
+      "salary": "150-200元/天",
+      "url": "https://jobs.example-mall.com/p/oper-intern-88",
+      "source": "official_job_board",
+      "requirements": ["本科在读", "有活动运营或内容运营经验优先", "熟悉 Excel，会基础数据分析"],
+      "responsibilities": "负责活动方案执行、用户反馈整理与运营数据日报。",
+      "posted_at": "2026-10-26",
+      "collected_at": "2026-10-29T09:05:00+08:00"
+    },
+    {
+      "company": "示例数据科技有限公司",
+      "title": "数据开发实习生",
+      "location": "杭州·西湖区",
+      "salary": "6-8K",
+      "url": "https://careers.example-data.com/job/dev-intern-77",
+      "source": "official_job_board",
+      "requirements": ["本科及以上", "熟悉 SQL、Python，了解数据仓库基础", "实习期 6 个月"],
+      "responsibilities": "参与数据管道开发与数据质量校验。",
+      "posted_at": "2026-10-25",
+      "collected_at": "2026-10-29T09:10:00+08:00"
+    },
+    {
+      "company": "示例智能科技有限公司",
+      "title": "算法实习生",
+      "location": "上海·杨浦区",
+      "salary": "面议",
+      "url": "https://careers.example-ai.com/jobs/algo-intern-12",
+      "source": "company_career_site",
+      "requirements": ["硕士及以上学历，计算机相关专业", "熟悉机器学习基础，有论文或竞赛经历优先"],
+      "responsibilities": "参与推荐算法实验与效果评估。",
+      "posted_at": "2026-10-24",
+      "collected_at": "2026-10-29T09:15:00+08:00"
+    },
+    {
+      "company": "示例传媒有限公司",
+      "title": "市场专员（全职）",
+      "location": "上海·静安区",
+      "salary": "8-10K",
+      "url": "https://jobs.example-media.com/mkt-2026",
+      "source": "official_job_board",
+      "requirements": ["本科及以上", "1-3 年市场推广经验", "能独立策划线下活动"],
+      "responsibilities": "负责品牌活动策划、渠道投放与效果复盘。",
+      "posted_at": "2026-10-20",
+      "collected_at": "2026-10-29T09:20:00+08:00"
+    },
+    {
+      "company": "示例科技（上海）有限公司",
+      "title": "数据分析实习生",
+      "location": "上海",
+      "salary": "200元/天",
+      "url": "https://aggregator.example-jobs.cn/view/9f2c1a",
+      "source": "manual_import",
+      "requirements": ["本科及以上在读", "熟悉 SQL 与 Excel"],
+      "responsibilities": "数据提取、清洗与报表输出（与官网岗位为同一职位，来自聚合站转载）。",
+      "posted_at": "2026-10-27",
+      "collected_at": "2026-10-29T09:25:00+08:00"
+    }
+  ]
+}

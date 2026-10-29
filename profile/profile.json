@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "local-demo-001",
+  "updated_at": "2026-10-29T12:30:00+08:00",
+  "note": "示例档案（人物为虚构占位），用于跑通流程。请用 profile.template.json 换成本人已确认事实；pending 项不得写入对外材料。",
+  "basics": {
+    "name": "示例同学",
+    "phone": "138-0000-0000",
+    "email": "example@example.com",
+    "city": "上海"
+  },
+  "education": [
+    {
+      "id": "edu-001",
+      "school": "示例大学",
+      "major": "计算机科学与技术",
+      "degree": "本科",
+      "start": "2023-09",
+      "end": "2027-06",
+      "status": "confirmed"
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp-001",
+      "kind": "internship",
+      "org": "示例电商公司",
+      "role": "数据分析实习生",
+      "start": "2026-07",
+      "end": "2026-09",
+      "highlights": [
+        "用 SQL 提取订单与用户行为数据，覆盖近 3 个月数据",
+        "用 Excel 与 Python 完成周度经营数据报表"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "id": "exp-002",
+      "kind": "project",
+      "org": "课程项目",
+      "role": "用户行为分析项目",
+      "start": "2026-03",
+      "end": "2026-06",
+      "highlights": [
+        "用 Python 完成数据清洗与描述性分析"
+      ],
+      "status": "confirmed"
+    }
+  ],
+  "skills": [
+    {"name": "Python", "level": "熟练", "evidence": "课程项目与实习使用", "status": "confirmed"},
+    {"name": "SQL", "level": "使用过", "evidence": "实习期间使用", "status": "confirmed"},
+    {"name": "Excel", "level": "熟练", "evidence": "实习周报", "status": "confirmed"},
+    {"name": "数据可视化", "level": "使用过", "evidence": "课程项目", "status": "confirmed"},
+    {"name": "Figma", "level": "了解", "evidence": "自学", "status": "pending"}
+  ],
+  "certifications": [
+    {"name": "CET-6", "state": "已取得", "date": "2025-12", "status": "confirmed"},
+    {"name": "计算机二级", "state": "备考中", "date": "", "status": "pending"}
+  ],
+  "preferences": {
+    "cities": ["上海"],
+    "salary_min": 6000,
+    "salary_period": "month",
+    "job_types": ["实习", "校招"],
+    "industries": ["互联网", "电商", "科技"],
+    "work_modes": ["onsite"]
+  },
+  "career_goals": {
+    "short_term": "数据分析或产品运营方向的实习，能独立完成数据整理与结论输出",
+    "long_term": "向数据产品/商业分析方向发展"
+  },
+  "constraints": {
+    "max_commute_minutes": 60,
+    "unacceptable": ["纯销售岗", "无薪实习"]
+  },
+  "facts_sources": [
+    {
+      "fact_id": "fact-001",
+      "fact": "学历：示例大学 计算机科学与技术 本科，2027-06 毕业",
+      "source": "用户口述并核对学籍信息",
+      "confirmed_by": "user",
+      "confirmed_at": "2026-10-28T20:00:00+08:00"
+    },
+    {
+      "fact_id": "fact-002",
+      "fact": "实习：示例电商公司 数据分析实习生 2026-07 至 2026-09",
+      "source": "实习证明草稿",
+      "confirmed_by": "user",
+      "confirmed_at": "2026-10-28T20:05:00+08:00"
+    },
+    {
+      "fact_id": "fact-003",
+      "fact": "证书：CET-6 已取得（2025-12）",
+      "source": "成绩单截图",
+      "confirmed_by": "user",
+      "confirmed_at": "2026-10-28T20:10:00+08:00"
+    }
+  ],
+  "open_questions": [
+    "Figma 熟练度待确认",
+    "计算机二级考试结果待确认",
+    "期望转正时间待确认"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-10-29T09:00:00+08:00",
+  "note": "投递记录：只允许通过 scripts/update_application.py 修改，脚本写前会生成 applications.json.bak 并追加 logs/applications.jsonl 审计日志。",
+  "applications": []
+}

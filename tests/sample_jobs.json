@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "note": "测试固定岗位：覆盖重复、学历阻断、证书未确认、城市不符、薪资缺失等场景。",
+  "collected_at": "2026-10-29T10:00:00+08:00",
+  "jobs": [
+    {
+      "company": "示例科技公司",
+      "title": "数据分析实习生",
+      "location": "上海·徐汇区",
+      "salary": "200元/天",
+      "url": "https://careers.example.com/data-intern",
+      "source": "company_career_site",
+      "requirements": ["本科及以上", "熟悉 SQL、Python、Excel"],
+      "responsibilities": "数据提取、清洗与周报输出",
+      "posted_at": "2026-10-27",
+      "collected_at": "2026-10-29T09:00:00+08:00"
+    },
+    {
+      "company": "示例科技公司",
+      "title": "数据分析实习生",
+      "location": "上海",
+      "salary": "200元/天",
+      "url": "https://aggregator.example.com/view/abc123",
+      "source": "manual_import",
+      "requirements": ["本科及以上", "熟悉 SQL、Python、Excel"],
+      "responsibilities": "数据提取、清洗与周报输出（聚合站转载）",
+      "posted_at": "2026-10-27",
+      "collected_at": "2026-10-29T09:05:00+08:00"
+    },
+    {
+      "company": "示例智能公司",
+      "title": "算法实习生",
+      "location": "上海·杨浦区",
+      "salary": "面议",
+      "url": "https://careers.example-ai.com/algo",
+      "source": "company_career_site",
+      "requirements": ["硕士及以上学历", "熟悉机器学习"],
+      "responsibilities": "推荐算法实验",
+      "posted_at": "2026-10-25",
+      "collected_at": "2026-10-29T09:10:00+08:00"
+    },
+    {
+      "company": "示例内容公司",
+      "title": "内容审核专员",
+      "location": "上海·静安区",
+      "salary": "5-7K",
+      "url": "https://jobs.example-content.com/reviewer",
+      "source": "official_job_board",
+      "requirements": ["本科", "持有教师资格证", "有耐心，能接受排班"],
+      "responsibilities": "内容审核与标注",
+      "posted_at": "2026-10-24",
+      "collected_at": "2026-10-29T09:15:00+08:00"
+    },
+    {
+      "company": "示例电商公司",
+      "title": "数据运营实习生",
+      "location": "北京·海淀区",
+      "salary": "150-200元/天",
+      "url": "https://jobs.example-mall.com/data-oper",
+      "source": "official_job_board",
+      "requirements": ["本科", "熟悉 Excel，会基础数据分析"],
+      "responsibilities": "运营数据日报与活动复盘",
+      "posted_at": "2026-10-23",
+      "collected_at": "2026-10-29T09:20:00+08:00"
+    }
+  ]
+}

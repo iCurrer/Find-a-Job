@@ -1,0 +1,56 @@
+# ---------------- 个人真实数据（最高优先级，一旦换成真实档案禁止提交） ----------------
+# 仓库内 profile/profile.json 是虚构占位示例；真实档案请另存为 profile/profile.local.json
+profile/profile.local.json
+profile/*.local.json
+profile/*.private.json
+
+# 运行产物中的个人痕迹
+logs/*.jsonl
+logs/*.log
+applications/applications.json.bak
+applications/evidence/*
+!applications/evidence/README.md
+resumes/*.pdf
+resumes/*.docx
+resumes/*.doc
+
+# ---------------- 密钥 / 凭据 ----------------
+.env
+.env.*
+*.pem
+*.key
+cookies.txt
+secrets.json
+
+# ---------------- Python ----------------
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---------------- 编辑器 / 操作系统 ----------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------- AI / 本地工具工作区（含个人记忆与配置，绝不入库） ----------------
+.workbuddy/
+.claude/
+.cursor/
+.agent/
+.windsurf/
+
+# ---------------- 临时文件 ----------------
+*.tmp
+*.bak
+*.orig
+~$*

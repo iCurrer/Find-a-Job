@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "note": "非敏感运行配置；不要在此文件写入密码、Cookie 或令牌。",
+  "updated_at": "2026-10-29T12:30:00+08:00",
+  "run_mode": "semi_auto",
+  "paths": {
+    "profile": "profile/profile.json",
+    "raw_jobs": "jobs/raw",
+    "normalized_jobs": "jobs/jobs.normalized.json",
+    "scored_jobs": "jobs/jobs.scored.json",
+    "applications": "applications/applications.json",
+    "resumes": "resumes",
+    "reports": "reports",
+    "logs": "logs"
+  },
+  "require_confirmation": [
+    "real_submit",
+    "send_email",
+    "upload_personal_data",
+    "external_write",
+    "login_with_credentials"
+  ],
+  "verified_capabilities": {
+    "file_read": false,
+    "script_exec": false,
+    "browser_exec": false,
+    "mobile_exec": false
+  },
+  "capability_note": "P0 环境盘点通过前一律为 false。每项能力必须有可复现的证据（命令输出、截图、日志路径）才能改为 true，并在 logs/ 中登记。",
+  "trusted_sources": [
+    "company_career_site",
+    "official_job_board",
+    "referral",
+    "manual_import"
+  ],
+  "job_status_enum": ["待评估", "优先投递", "暂缓", "不匹配", "已过期"]
+}

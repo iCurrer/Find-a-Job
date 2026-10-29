@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "local-001",
+  "updated_at": "2026-10-29T12:30:00+08:00",
+  "note": "空白模板：把每一项换成用户已确认的事实后再用于生成材料。status 取值 confirmed/pending/expired。",
+  "basics": {
+    "name": "",
+    "phone": "",
+    "email": "",
+    "city": ""
+  },
+  "education": [
+    {
+      "id": "edu-001",
+      "school": "",
+      "major": "",
+      "degree": "本科",
+      "start": "",
+      "end": "",
+      "status": "pending"
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp-001",
+      "kind": "internship",
+      "org": "",
+      "role": "",
+      "start": "",
+      "end": "",
+      "highlights": [],
+      "status": "pending"
+    }
+  ],
+  "skills": [
+    {
+      "name": "",
+      "level": "了解",
+      "evidence": "",
+      "status": "pending"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "",
+      "state": "计划中",
+      "date": "",
+      "status": "pending"
+    }
+  ],
+  "preferences": {
+    "cities": [],
+    "salary_min": null,
+    "salary_period": "month",
+    "job_types": [],
+    "industries": [],
+    "work_modes": []
+  },
+  "career_goals": {
+    "short_term": "",
+    "long_term": ""
+  },
+  "constraints": {
+    "max_commute_minutes": null,
+    "unacceptable": []
+  },
+  "facts_sources": [],
+  "open_questions": []
+}
